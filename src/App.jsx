@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -669,10 +671,13 @@ function HistoryTab({ history, currentRecordId, onOpenRecord, onLoadDemo }) {
 }
 
 export default function App() {
+  const [todayLabel, setTodayLabel] = useState("");
+
   useEffect(() => {
     const s = document.createElement("style");
     s.textContent = `@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');*,*::before,*::after{box-sizing:border-box}body{margin:0;background:${C.bg}}select,input,textarea{outline:none!important}button{transition:all 0.2s ease}::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:${C.surface}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}`;
     document.head.appendChild(s);
+    setTodayLabel(new Date().toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" }));
     return () => document.head.removeChild(s);
   }, []);
 
@@ -839,7 +844,7 @@ export default function App() {
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted }}>{new Date().toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" })}</div>
+            <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted }}>{todayLabel || " "}</div>
             <div style={{ fontFamily: F.mono, fontSize: 9, color: C.border, marginTop: 3 }}>ADVISORY ONLY · v2.0</div>
           </div>
         </div>

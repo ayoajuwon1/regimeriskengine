@@ -1,31 +1,20 @@
-import "dotenv/config";
-
-import cors from "cors";
-import express from "express";
 import OpenAI from "openai";
+import { NextResponse } from "next/server";
 
-const PORT = Number(process.env.PORT || 3001);
+export const runtime = "nodejs";
+
 const MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const SYSTEM_PROMPT = "You are a senior institutional portfolio risk strategist. Respond only with strict JSON that matches the supplied schema. Keep outputs concise, analytically precise, and suitable for institutional governance review.";
 
-const app = express();
-
-app.use(cors());
-app.use(express.json({ limit: "1mb" }));
-
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, model: MODEL });
-});
-
-app.post("/api/analyze", async (req, res) => {
-  const { prompt, schema, schemaName } = req.body || {};
+export async function POST(request) {
+  const { prompt, schema, schemaName } = await request.json().catch(() => ({}));
 
   if (!prompt || !schema || !schemaName) {
-    return res.status(400).json({ error: "Missing prompt, schema, or schemaName." });
+    return NextResponse.json({ error: "Missing prompt, schema, or schemaName." }, { status: 400 });
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    return res.status(500).json({ error: "Missing OPENAI_API_KEY in the server environment." });
+    return NextResponse.json({ error: "Missing OPENAI_API_KEY in the server environment." }, { status: 500 });
   }
 
   try {
@@ -50,13 +39,9 @@ app.post("/api/analyze", async (req, res) => {
       throw new Error("OpenAI returned an empty response.");
     }
 
-    return res.json(JSON.parse(outputText));
+    return NextResponse.json(JSON.parse(outputText));
   } catch (error) {
     const message = error instanceof Error ? error.message : "OpenAI request failed.";
-    return res.status(500).json({ error: message });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-});
-
-app.listen(PORT, () => {
-  console.log(`Regime Risk Engine API listening on http://localhost:${PORT}`);
-});
+}

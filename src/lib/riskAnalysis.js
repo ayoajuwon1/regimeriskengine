@@ -1,9 +1,16 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+function normalizeApiBaseUrl(value) {
+  return (value || "")
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/api(?:\/analyze)?$/i, "");
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
 
 export const ANALYSIS_META = {
   provider: "OpenAI",
   mode: "live",
-  modelLabel: import.meta.env.VITE_ANALYSIS_MODEL_LABEL || "Configured OpenAI model",
+  modelLabel: process.env.NEXT_PUBLIC_ANALYSIS_MODEL_LABEL || "Configured OpenAI model",
   promptVersion: "v2.2",
   schemaVersion: "2026-03-10",
 };

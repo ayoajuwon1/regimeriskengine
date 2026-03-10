@@ -48,35 +48,40 @@ cp .env.example .env
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173)
+Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
 ## Runtime Notes
 
-- The UI now calls a local `/api/analyze` backend instead of sending model requests directly from the browser.
+- The app now runs as a single Next.js service with UI and API routes in one process.
+- The UI calls the local `/api/analyze` route instead of sending model requests directly from the browser.
 - Set `OPENAI_API_KEY` in `.env`. Do not commit it.
 - Override `OPENAI_MODEL` if you want a different OpenAI model.
+- `NEXT_PUBLIC_API_BASE_URL` is optional. If you set it, you can use the origin (`http://localhost:3000`), `/api`, or a full `/api/analyze` path.
 - Use the in-app demo analysis flow if the OpenAI project is rate-limited or out of quota.
 
 ---
 
 ## Architecture
 
-```
-server/
-└── index.js      # Express API that calls OpenAI Responses
+```text
+app/
+├── api/
+│   ├── analyze/route.js # Next API route that calls OpenAI Responses
+│   └── health/route.js  # Lightweight health check
+├── globals.css          # Global resets
+├── layout.js            # Root layout + metadata
+└── page.jsx             # Next entrypoint that renders the product UI
 src/
-├── App.jsx        # Product UI, history, memo, and human review flows
+├── App.jsx              # Product UI, history, memo, and human review flows
 └── lib/
     ├── analysisStore.js # Local persistence + audit trail helpers
     ├── memo.js          # Committee memo generation and export
     ├── riskAnalysis.js  # Prompting + JSON schemas for the 4 stages
     └── sampleAnalysis.js # Proposal-aligned demo dataset
-index.html
-vite.config.js
 package.json
-.env.example       # Copy to .env and add your API key
+.env.example             # Copy to .env and add your API key
 ```
 
 ---
