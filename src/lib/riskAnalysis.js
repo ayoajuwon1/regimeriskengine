@@ -1,9 +1,17 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
+export const ANALYSIS_META = {
+  provider: "OpenAI",
+  mode: "live",
+  modelLabel: import.meta.env.VITE_ANALYSIS_MODEL_LABEL || "Configured OpenAI model",
+  promptVersion: "v2.2",
+  schemaVersion: "2026-03-10",
+};
+
 const exposureScoreSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["score", "drivers"],
+  required: ["score", "drivers", "interpretation"],
   properties: {
     score: { type: "integer", minimum: 0, maximum: 10 },
     drivers: {
@@ -12,6 +20,7 @@ const exposureScoreSchema = {
       minItems: 1,
       maxItems: 3,
     },
+    interpretation: { type: "string" },
   },
 };
 
@@ -19,11 +28,34 @@ const impactEnum = ["Bullish", "Neutral", "Bearish"];
 const probabilityEnum = ["High", "Medium", "Low"];
 const liquidityStressEnum = ["Low", "Medium", "High", "Critical"];
 
+const historicalAnalogySchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["episode", "matchScore", "parallels", "differences"],
+  properties: {
+    episode: { type: "string" },
+    matchScore: { type: "integer", minimum: 0, maximum: 100 },
+    parallels: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 2,
+      maxItems: 3,
+    },
+    differences: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 1,
+      maxItems: 2,
+    },
+  },
+};
+
 const stage1Schema = {
   type: "object",
   additionalProperties: false,
-  required: ["exposureMap", "dominantExposures", "hiddenConcentrations"],
+  required: ["analysisSummary", "exposureMap", "dominantExposures", "hiddenConcentrations"],
   properties: {
+    analysisSummary: { type: "string" },
     exposureMap: {
       type: "object",
       additionalProperties: false,
@@ -65,6 +97,7 @@ const regimeSchema = {
   required: [
     "id",
     "name",
+    "scenarioType",
     "probability",
     "timeHorizon",
     "trigger",
@@ -75,10 +108,13 @@ const regimeSchema = {
     "creditImpact",
     "realAssetsImpact",
     "keyRisk",
+    "rationaleSummary",
+    "historicalAnalogy",
   ],
   properties: {
     id: { type: "integer", minimum: 1, maximum: 3 },
     name: { type: "string" },
+    scenarioType: { type: "string" },
     probability: { type: "string", enum: probabilityEnum },
     timeHorizon: { type: "string" },
     trigger: { type: "string" },
@@ -94,14 +130,17 @@ const regimeSchema = {
     creditImpact: { type: "string", enum: impactEnum },
     realAssetsImpact: { type: "string", enum: impactEnum },
     keyRisk: { type: "string" },
+    rationaleSummary: { type: "string" },
+    historicalAnalogy: historicalAnalogySchema,
   },
 };
 
 const stage2Schema = {
   type: "object",
   additionalProperties: false,
-  required: ["regimes"],
+  required: ["regimeSetSummary", "regimes"],
   properties: {
+    regimeSetSummary: { type: "string" },
     regimes: {
       type: "array",
       items: regimeSchema,
@@ -123,6 +162,7 @@ const vulnerabilitySchema = {
     "estimatedDrawdown",
     "vulnerabilityScore",
     "primaryVulnerability",
+    "reasoningSummary",
   ],
   properties: {
     regimeId: { type: "integer", minimum: 1, maximum: 3 },
@@ -143,14 +183,16 @@ const vulnerabilitySchema = {
     estimatedDrawdown: { type: "string" },
     vulnerabilityScore: { type: "integer", minimum: 0, maximum: 10 },
     primaryVulnerability: { type: "string" },
+    reasoningSummary: { type: "string" },
   },
 };
 
 const stage3Schema = {
   type: "object",
   additionalProperties: false,
-  required: ["vulnerabilities"],
+  required: ["analysisSummary", "vulnerabilities"],
   properties: {
+    analysisSummary: { type: "string" },
     vulnerabilities: {
       type: "array",
       items: vulnerabilitySchema,
@@ -173,6 +215,9 @@ const stage4Schema = {
     "governanceActions",
     "counterScenario",
     "keyWatchItems",
+    "decisionContext",
+    "humanValidationChecks",
+    "committeeMemoHeadline",
   ],
   properties: {
     rci: {
@@ -219,6 +264,14 @@ const stage4Schema = {
       minItems: 3,
       maxItems: 4,
     },
+    decisionContext: { type: "string" },
+    humanValidationChecks: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 3,
+      maxItems: 4,
+    },
+    committeeMemoHeadline: { type: "string" },
   },
 };
 
@@ -242,7 +295,7 @@ export function stage1(portfolio) {
     `Portfolio: ${JSON.stringify(portfolio)}
 
 Assess the portfolio's macro-factor exposure map for an institutional investment committee.
-Keep every string concise and decision-useful.`,
+Return concise, decision-useful rationales that surface implicit factor bets and hidden concentrations.`,
     "portfolio_exposure_map",
     stage1Schema,
   );
@@ -255,10 +308,14 @@ export function stage2(portfolio, exposures) {
       duration: portfolio.duration,
       leverage: portfolio.leverage,
       constraints: portfolio.constraints,
+      liquidityProfile: portfolio.liquidityProfile,
     })}
 Top exposures: ${JSON.stringify(exposures.dominantExposures)}
+Hidden concentrations: ${JSON.stringify(exposures.hiddenConcentrations)}
 
-Generate exactly 3 forward-looking macro regimes with distinct probabilities, triggers, and transmission mechanisms.`,
+Generate exactly 3 forward-looking macro regimes.
+Diversify the regime set across different scenario types rather than producing three versions of the same risk.
+For each regime include a short historical analogy with parallels and differences.`,
     "portfolio_regimes",
     stage2Schema,
   );
@@ -268,14 +325,18 @@ export function stage3(portfolio, regimes) {
   return requestStructuredJson(
     `Portfolio liquidity: ${portfolio.liquidityProfile}
 Portfolio leverage: ${portfolio.leverage}
+Portfolio constraints: ${portfolio.constraints}
 Regimes: ${JSON.stringify(regimes.map((regime) => ({
       id: regime.id,
       name: regime.name,
+      scenarioType: regime.scenarioType,
       probability: regime.probability,
       keyRisk: regime.keyRisk,
+      historicalAnalogy: regime.historicalAnalogy,
     })))}
 
-Score the first-order and second-order vulnerabilities for each regime.`,
+Score the first-order and second-order vulnerabilities for each regime.
+Make the liquidity implications explicit and concise.`,
     "portfolio_vulnerabilities",
     stage3Schema,
   );
@@ -283,12 +344,14 @@ Score the first-order and second-order vulnerabilities for each regime.`,
 
 export function stage4(portfolio, exposures, vulnerabilities) {
   return requestStructuredJson(
-    `Portfolio leverage: ${portfolio.leverage}
+    `Portfolio name: ${portfolio.name || "Institutional Portfolio"}
+Portfolio leverage: ${portfolio.leverage}
 Portfolio liquidity: ${portfolio.liquidityProfile}
 Dominant exposures: ${JSON.stringify(exposures.dominantExposures)}
+Hidden concentrations: ${JSON.stringify(exposures.hiddenConcentrations)}
 Vulnerabilities: ${JSON.stringify(vulnerabilities.vulnerabilities)}
 
-Compute governance metrics, escalation guidance, and watch items for an institutional risk committee.`,
+Compute governance metrics, escalation guidance, and the human validation checks an investment committee should complete before acting.`,
     "portfolio_governance_metrics",
     stage4Schema,
   );

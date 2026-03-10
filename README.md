@@ -15,6 +15,14 @@ A 4-stage AI-powered institutional portfolio risk analysis tool built for forwar
 | 3. Vulnerability Assessment | First/second-order effects, drawdown estimates, liquidity stress |
 | 4. Governance Metrics | RCI gauge, LCI gauge, escalation protocol (Level 1–4), governance actions |
 
+Additional prototype capabilities now included:
+
+- Historical analogs and rationale summaries for every regime
+- Local audit trail and saved analysis history
+- Human review workflow with validation checklist and escalation override notes
+- Editable committee memo with Markdown export
+- Demo analysis path for proposal review when live API credits are unavailable
+
 ---
 
 ## Setup
@@ -49,6 +57,7 @@ Open [http://localhost:5173](http://localhost:5173)
 - The UI now calls a local `/api/analyze` backend instead of sending model requests directly from the browser.
 - Set `OPENAI_API_KEY` in `.env`. Do not commit it.
 - Override `OPENAI_MODEL` if you want a different OpenAI model.
+- Use the in-app demo analysis flow if the OpenAI project is rate-limited or out of quota.
 
 ---
 
@@ -58,9 +67,12 @@ Open [http://localhost:5173](http://localhost:5173)
 server/
 └── index.js      # Express API that calls OpenAI Responses
 src/
-├── App.jsx        # Product UI and workflow state
+├── App.jsx        # Product UI, history, memo, and human review flows
 └── lib/
-    └── riskAnalysis.js  # Prompting + JSON schemas for the 4 stages
+    ├── analysisStore.js # Local persistence + audit trail helpers
+    ├── memo.js          # Committee memo generation and export
+    ├── riskAnalysis.js  # Prompting + JSON schemas for the 4 stages
+    └── sampleAnalysis.js # Proposal-aligned demo dataset
 index.html
 vite.config.js
 package.json
