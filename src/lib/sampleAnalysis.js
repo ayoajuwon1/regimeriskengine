@@ -1,3 +1,5 @@
+import { buildIntakeClassification } from "./systemDesign/classification.js";
+
 export const DEMO_PORTFOLIO = {
   name: "Global Balanced Endowment",
   allocations: [
@@ -22,6 +24,14 @@ export const DEMO_ANALYSIS_META = {
   modelLabel: "Proposal Demo Dataset",
   promptVersion: "demo-v1",
   schemaVersion: "2026-03-10",
+  systemDesignVersion: "2026-03-10",
+  intakeClassification: null,
+  dataSources: ["Proposal Demo Dataset"],
+  dataAsOf: "2026-03-10",
+  contextVersion: "demo-v1",
+  marketSummary: "Demo market context represents a diversified inflation, growth, and liquidity stress backdrop for committee review.",
+  providerStatus: [],
+  indicatorValues: {},
 };
 
 export const DEMO_RESULTS = {
@@ -167,3 +177,8 @@ export const DEMO_RESULTS = {
 
 DEMO_RESULTS.regimes = DEMO_RESULTS.regimeAssessment.regimes;
 DEMO_RESULTS.vulnerabilities = DEMO_RESULTS.vulnerabilityAssessment.vulnerabilities;
+
+DEMO_ANALYSIS_META.intakeClassification = buildIntakeClassification(DEMO_PORTFOLIO, {
+  asOf: DEMO_ANALYSIS_META.dataAsOf,
+  sourcesUsed: DEMO_ANALYSIS_META.dataSources,
+});

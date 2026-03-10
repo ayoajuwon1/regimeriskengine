@@ -83,6 +83,23 @@ export function createAnalysisRecord({ portfolio, results, analysisMeta }) {
     createAuditEvent("analysis.completed", "System", `Analysis saved in ${analysisMeta.mode} mode.`, {
       model: analysisMeta.modelLabel,
       promptVersion: analysisMeta.promptVersion,
+      systemDesignVersion: analysisMeta.systemDesignVersion || null,
+      intakeClassification: analysisMeta.intakeClassification || null,
+      dataSources: analysisMeta.dataSources || [],
+      dataAsOf: analysisMeta.dataAsOf || null,
+    }),
+    createAuditEvent(
+      "intake.classified",
+      "System",
+      analysisMeta.intakeClassification?.classificationSummary || "Intake classification recorded for this analysis.",
+      {
+        intakeClassification: analysisMeta.intakeClassification || null,
+      },
+    ),
+    createAuditEvent("market.context.loaded", "System", analysisMeta.marketSummary || "Public market context attached to the analysis.", {
+      contextVersion: analysisMeta.contextVersion || null,
+      dataSources: analysisMeta.dataSources || [],
+      dataAsOf: analysisMeta.dataAsOf || null,
     }),
     createAuditEvent("memo.generated", "System", "Committee memo drafted from the latest analysis.", {}),
   ];

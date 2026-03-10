@@ -14,7 +14,11 @@ import {
   upsertAnalysisRecord,
 } from "./lib/analysisStore";
 import { downloadTextFile } from "./lib/memo";
-import { ANALYSIS_META, stage1, stage2, stage3, stage4 } from "./lib/riskAnalysis";
+import { ANALYSIS_META, fetchMarketContext, stage1, stage2, stage3, stage4 } from "./lib/riskAnalysis";
+import { fetchSystemDesign } from "./lib/systemDesign/client.js";
+import { buildIntakeClassification } from "./lib/systemDesign/classification.js";
+import { isSystemGuideEnabled } from "./lib/systemDesign/constants.js";
+import { validateMemoStatusChange, validateReviewDecision } from "./lib/systemDesign/policy.js";
 
 const ASSET_CLASSES = ["Public Equity – Developed Markets","Public Equity – Emerging Markets","Investment Grade Fixed Income","High Yield / Credit","Private Equity","Private Credit","Real Assets / Infrastructure","Hedge Funds / Alternatives","Cash & Equivalents","Commodities"];
 const LIQUIDITY_OPTIONS = ["High Liquidity (>80% liquid within 30 days)","Mixed (40–80% liquid within 30 days)","Illiquid-Heavy (<40% liquid within 30 days)"];
@@ -26,6 +30,7 @@ const PIPE_LABELS = [
   "Simulating vulnerabilities and liquidity stress",
   "Drafting governance metrics and memo package",
 ];
+const SYSTEM_GUIDE_ENABLED = isSystemGuideEnabled();
 const DEFAULT_PORTFOLIO = {
   name: "Global Balanced Endowment",
   allocations:[
@@ -76,6 +81,15 @@ function formatDateTime(value) {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+  });
+}
+
+function formatShortDate(value) {
+  if (!value) return "Unavailable";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -218,7 +232,121 @@ function PipeProgress({ step }) {
   );
 }
 
-function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenLatest, historyCount }) {
+function MarketContextCard({ marketContext, loading, loadError, onRefresh }) {
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+        <div>
+          <Lbl>Public Market Context</Lbl>
+          <div style={{ fontFamily: F.serif, fontSize: 18, color: C.text }}>Macro Snapshot</div>
+        </div>
+        <button onClick={onRefresh} style={{ background: "transparent", border: `1px solid ${C.borderBright}`, color: C.text, padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 10 }}>REFRESH</button>
+      </div>
+      {loading && <div style={{ fontFamily: F.serif, fontSize: 14, color: C.muted }}>Loading public market context...</div>}
+      {!loading && loadError && <div style={{ fontFamily: F.mono, fontSize: 11, color: C.red, lineHeight: 1.6 }}>⚠ {loadError}</div>}
+      {!loading && marketContext && (
+        <>
+          <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted, marginBottom: 10 }}>As of {formatShortDate(marketContext.asOf)}</div>
+          <p style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.6, margin: "0 0 12px" }}>{marketContext.summary}</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {(marketContext.sourcesUsed || []).map((source) => <Tag key={source} color={C.green}>{source}</Tag>)}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {(marketContext.providerStatus || []).map((entry) => (
+              <div key={entry.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontFamily: F.mono, fontSize: 10, color: C.text }}>
+                <span>{entry.label}</span>
+                <span style={{ color: entry.status === "used" ? C.green : entry.status === "partial" ? C.orange : entry.status === "idle" ? C.blue : entry.status === "unavailable" ? C.red : C.muted }}>{entry.status.toUpperCase()}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function MethodGuidePanel({ open, onClose, systemDesign, loading, loadError }) {
+  if (!open) return null;
+
+  return (
+    <Card style={{ marginBottom: 20 }} hl={C.blue}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 14 }}>
+        <div>
+          <Lbl c={C.blue}>Method / Guide</Lbl>
+          <div style={{ fontFamily: F.serif, fontSize: 24, color: C.text, fontWeight: 600 }}>System Design Overview</div>
+        </div>
+        <button onClick={onClose} style={{ background: "transparent", border: `1px solid ${C.borderBright}`, color: C.text, padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 10 }}>CLOSE</button>
+      </div>
+
+      {loading && <div style={{ fontFamily: F.serif, fontSize: 14, color: C.muted }}>Loading system design artifacts...</div>}
+      {!loading && loadError && <div style={{ fontFamily: F.mono, fontSize: 11, color: C.red, lineHeight: 1.6 }}>⚠ {loadError}</div>}
+      {!loading && systemDesign && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Tag color={C.blue}>v{systemDesign.version}</Tag>
+            <Tag color={C.accent}>{systemDesign.dataBoundary.currentMode}</Tag>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 16 }}>
+            <Card style={{ padding: 16 }}>
+              <Lbl>What The System Does</Lbl>
+              <p style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.65, margin: "0 0 12px" }}>{systemDesign.interactionGuide.overview}</p>
+              <SectionBullets items={systemDesign.systemInstruction.capabilities} color={C.green} />
+            </Card>
+            <Card style={{ padding: 16 }} hl={C.red}>
+              <Lbl>What It Refuses</Lbl>
+              <SectionBullets items={systemDesign.systemInstruction.refusals} color={C.red} />
+            </Card>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Card style={{ padding: 16 }}>
+              <Lbl>How To Use It</Lbl>
+              <SectionBullets items={systemDesign.interactionGuide.steps} color={C.blue} />
+            </Card>
+            <Card style={{ padding: 16 }}>
+              <Lbl>Human Review Checkpoints</Lbl>
+              <SectionBullets items={systemDesign.interactionGuide.reviewCheckpoints} color={C.accent} />
+            </Card>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Card style={{ padding: 16 }}>
+              <Lbl>Required Inputs</Lbl>
+              <SectionBullets items={systemDesign.inputTemplate.requiredFields.map((field) => `${field.field} (${field.type}) — ${field.description}`)} color={C.green} />
+              <div style={{ marginTop: 12, fontFamily: F.mono, fontSize: 10, color: C.muted }}>Validation rules</div>
+              <SectionBullets items={systemDesign.inputTemplate.validationRules} color={C.blue} />
+            </Card>
+            <Card style={{ padding: 16 }}>
+              <Lbl>Output Schema</Lbl>
+              <SectionBullets items={systemDesign.outputSchemaSummary.stages.map((stage) => `${stage.label}: ${stage.requiredTopLevelFields.join(", ")}`)} color={C.accent} />
+            </Card>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Card style={{ padding: 16 }}>
+              <Lbl>Workflow</Lbl>
+              <SectionBullets items={systemDesign.workflow.steps.map((step) => `${step.label}: ${step.description}`)} color={C.blue} />
+            </Card>
+            <Card style={{ padding: 16 }}>
+              <Lbl>Data Boundary</Lbl>
+              <SectionBullets items={systemDesign.dataBoundary.whyIncluded} color={C.green} />
+              <div style={{ marginTop: 12, fontFamily: F.mono, fontSize: 10, color: C.muted }}>Cannot answer from current sources</div>
+              <SectionBullets items={systemDesign.dataBoundary.cannotAnswer} color={C.red} />
+            </Card>
+          </div>
+
+          <Card style={{ padding: 16 }}>
+            <Lbl>Structured Input Example</Lbl>
+            <pre style={{ margin: 0, padding: 16, background: "#050810", border: `1px solid ${C.border}`, borderRadius: 6, overflowX: "auto", fontFamily: F.mono, fontSize: 11, lineHeight: 1.6, color: C.text }}>{JSON.stringify(systemDesign.inputTemplate.sample, null, 2)}</pre>
+          </Card>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenLatest, historyCount, marketContext, marketContextLoading, marketContextError, onRefreshMarketContext }) {
   const total = portfolio.allocations.reduce((s, a) => s + (Number(a.weight) || 0), 0);
   const valid = Math.abs(total - 100) < 0.5;
   const inp = { background: "#050810", border: `1px solid ${C.border}`, color: C.text, fontFamily: F.mono, fontSize: 12, padding: "6px 10px", borderRadius: 4, width: "100%" };
@@ -269,6 +397,13 @@ function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenL
           <Lbl>Governance Coverage</Lbl>
           <SectionBullets items={["Live analysis saves into a local audit trail", "Review workflow supports validation and escalation overrides", "Committee memo is editable and exportable", "Historical analogs and rationale summaries are preserved per scenario"]} color={C.blue} />
         </Card>
+
+        <MarketContextCard
+          marketContext={marketContext}
+          loading={marketContextLoading}
+          loadError={marketContextError}
+          onRefresh={onRefreshMarketContext}
+        />
 
         {error && <div style={{ background: C.red + "15", border: `1px solid ${C.red}40`, borderRadius: 6, padding: "12px 14px", color: C.red, fontFamily: F.mono, fontSize: 11, lineHeight: 1.6 }}>⚠ {error}</div>}
 
@@ -521,6 +656,7 @@ function GovernanceTab({ gov, reviewDraft, onReviewChange, onSaveReview, onExpor
           <div style={{ marginBottom: 12 }}>
             <Lbl>Override Reason</Lbl>
             <textarea rows={2} value={reviewDraft.escalationOverrideReason} onChange={(e) => onReviewChange("escalationOverrideReason", e.target.value)} style={{ width: "100%", background: "#050810", border: `1px solid ${C.border}`, color: C.text, fontFamily: F.mono, fontSize: 12, padding: "8px 10px", borderRadius: 4, resize: "vertical" }} />
+            <div style={{ marginTop: 4, fontFamily: F.mono, fontSize: 10, color: C.muted }}>Required when an escalation override is selected.</div>
           </div>
           <div style={{ marginBottom: 12 }}>
             <Lbl>Validation Checklist</Lbl>
@@ -563,6 +699,7 @@ function MemoTab({ memoDraft, onMemoChange, onSaveMemo, onRegenerateMemo, onExpo
             <select value={memoDraft.status} onChange={(e) => onMemoChange("status", e.target.value)} style={{ width: "100%", background: "#050810", border: `1px solid ${C.border}`, color: C.text, fontFamily: F.mono, fontSize: 12, padding: "8px 10px", borderRadius: 4 }}>
               {["Draft", "Ready for Committee", "Sent to Committee"].map((status) => <option key={status}>{status}</option>)}
             </select>
+            <div style={{ marginTop: 4, fontFamily: F.mono, fontSize: 10, color: C.muted }}>Committee-ready memo states require a review status of Validated or Escalated.</div>
           </div>
           <button onClick={onSaveMemo} style={{ background: C.accent, border: "none", color: "#020509", padding: "12px 14px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, width: "100%", marginBottom: 10 }}>SAVE MEMO</button>
           <button onClick={onRegenerateMemo} style={{ background: "transparent", border: `1px solid ${C.borderBright}`, color: C.text, padding: "12px 14px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, width: "100%", marginBottom: 10 }}>REGENERATE FROM ANALYSIS</button>
@@ -576,8 +713,20 @@ function MemoTab({ memoDraft, onMemoChange, onSaveMemo, onRegenerateMemo, onExpo
             <div>Model: {analysisMeta.modelLabel}</div>
             <div>Prompt Version: {analysisMeta.promptVersion}</div>
             <div>Schema Version: {analysisMeta.schemaVersion}</div>
+            <div>System Design: {analysisMeta.systemDesignVersion || "Not recorded"}</div>
+            <div>Intake Classification: {analysisMeta.intakeClassification?.classificationSummary || "Not recorded"}</div>
+            <div>Data As Of: {formatShortDate(analysisMeta.dataAsOf)}</div>
+            <div>Data Sources: {(analysisMeta.dataSources || []).join(", ") || "Not recorded"}</div>
           </div>
         </Card>
+        {analysisMeta.intakeClassification && (
+          <Card>
+            <Lbl>Intake Classification</Lbl>
+            <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.6, marginBottom: 10 }}>{analysisMeta.intakeClassification.classificationSummary}</div>
+            <SectionBullets items={analysisMeta.intakeClassification.concentrationFlags} color={C.blue} />
+          </Card>
+        )}
+        {analysisMeta.marketSummary && <Card><Lbl>Market Summary</Lbl><div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.6 }}>{analysisMeta.marketSummary}</div></Card>}
         <Card>
           <Lbl>Review Snapshot</Lbl>
           <SectionBullets items={[
@@ -652,12 +801,13 @@ function HistoryTab({ history, currentRecordId, onOpenRecord, onLoadDemo }) {
                 <div>
                   <Lbl>Governance Snapshot</Lbl>
                   <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.7 }}>
-                    <div>Review Status: {selected.review.status}</div>
-                    <div>Escalation: Level {selected.results.governance.escalationLevel}</div>
-                    <div>RCI / LCI: {selected.results.governance.rci.score} / {selected.results.governance.lci.score}</div>
-                    <div>Updated: {formatDateTime(selected.updatedAt)}</div>
-                  </div>
+                  <div>Review Status: {selected.review.status}</div>
+                  <div>Escalation: Level {selected.results.governance.escalationLevel}</div>
+                  <div>RCI / LCI: {selected.results.governance.rci.score} / {selected.results.governance.lci.score}</div>
+                  <div>Classification: {selected.analysisMeta.intakeClassification?.portfolioComplexity || "Not recorded"}</div>
+                  <div>Updated: {formatDateTime(selected.updatedAt)}</div>
                 </div>
+              </div>
               </div>
             </Card>
             <AuditTrail events={selected.auditTrail} />
@@ -708,10 +858,61 @@ export default function App() {
     status: "Draft",
     updatedAt: null,
   });
+  const [marketContext, setMarketContext] = useState(null);
+  const [marketContextLoading, setMarketContextLoading] = useState(true);
+  const [marketContextError, setMarketContextError] = useState(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const [systemDesign, setSystemDesign] = useState(null);
+  const [systemDesignLoading, setSystemDesignLoading] = useState(SYSTEM_GUIDE_ENABLED);
+  const [systemDesignError, setSystemDesignError] = useState(null);
 
   useEffect(() => {
     const stored = loadAnalysisHistory();
     setHistory(stored);
+  }, []);
+
+  const loadMarketContext = useCallback(async () => {
+    setMarketContextLoading(true);
+    setMarketContextError(null);
+    try {
+      const context = await fetchMarketContext();
+      setMarketContext(context);
+    } catch (nextError) {
+      setMarketContextError(nextError.message);
+    } finally {
+      setMarketContextLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMarketContext();
+  }, [loadMarketContext]);
+
+  useEffect(() => {
+    if (!SYSTEM_GUIDE_ENABLED) {
+      setSystemDesignLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    async function loadSystemDesign() {
+      setSystemDesignLoading(true);
+      setSystemDesignError(null);
+      try {
+        const nextSystemDesign = await fetchSystemDesign();
+        if (active) setSystemDesign(nextSystemDesign);
+      } catch (nextError) {
+        if (active) setSystemDesignError(nextError.message);
+      } finally {
+        if (active) setSystemDesignLoading(false);
+      }
+    }
+
+    loadSystemDesign();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const persistHistory = useCallback((nextHistory) => {
@@ -753,13 +954,19 @@ export default function App() {
     setStep(0);
     try {
       setStep(1);
-      const exp = await stage1(portfolio);
+      const intakeClassification = buildIntakeClassification(portfolio, marketContext);
+      const expResponse = await stage1(portfolio, intakeClassification);
+      const exp = expResponse.data;
       setStep(2);
-      const reg = await stage2(portfolio, exp);
+      const regResponse = await stage2(portfolio, exp, intakeClassification);
+      const reg = regResponse.data;
       setStep(3);
-      const vuln = await stage3(portfolio, reg.regimes || []);
+      const vulnResponse = await stage3(portfolio, reg.regimes || [], intakeClassification);
+      const vuln = vulnResponse.data;
       setStep(4);
-      const gov = await stage4(portfolio, exp, vuln);
+      const govResponse = await stage4(portfolio, exp, vuln, intakeClassification);
+      const gov = govResponse.data;
+      const analysisContext = govResponse.analysisContext || vulnResponse.analysisContext || regResponse.analysisContext || expResponse.analysisContext || marketContext;
 
       const results = {
         exposures: exp,
@@ -769,17 +976,26 @@ export default function App() {
         vulnerabilities: vuln.vulnerabilities || [],
         governance: gov,
       };
-      const record = createAnalysisRecord({ portfolio, results, analysisMeta: ANALYSIS_META });
+      const record = createAnalysisRecord({
+        portfolio,
+        results,
+        analysisMeta: {
+          ...ANALYSIS_META,
+          intakeClassification,
+          ...(analysisContext || {}),
+        },
+      });
       const nextHistory = upsertAnalysisRecord(history, record);
       persistHistory(nextHistory);
       setCurrentRecordId(record.id);
       setTab(0);
+      setError(null);
       setStage("results");
     } catch (e) {
       setError(e.message);
       setStage("input");
     }
-  }, [history, persistHistory, portfolio]);
+  }, [history, marketContext, persistHistory, portfolio]);
 
   const updateCurrentRecord = useCallback((updater) => {
     if (!currentRecord) return null;
@@ -791,22 +1007,38 @@ export default function App() {
   }, [currentRecord, history, persistHistory]);
 
   const handleReviewChange = useCallback((field, value) => {
+    setError(null);
     setReviewDraft((prev) => ({ ...prev, [field]: value }));
   }, []);
 
   const handleSaveReview = useCallback(() => {
+    const reviewError = validateReviewDecision(reviewDraft);
+    if (reviewError) {
+      setError(reviewError);
+      return;
+    }
+
     const updated = updateCurrentRecord((record) => updateReviewRecord(record, reviewDraft));
     if (updated) setReviewDraft(updated.review);
+    setError(null);
   }, [reviewDraft, updateCurrentRecord]);
 
   const handleMemoChange = useCallback((field, value) => {
+    setError(null);
     setMemoDraft((prev) => ({ ...prev, [field]: value }));
   }, []);
 
   const handleSaveMemo = useCallback(() => {
+    const memoError = validateMemoStatusChange(memoDraft, reviewDraft);
+    if (memoError) {
+      setError(memoError);
+      return;
+    }
+
     const actor = reviewDraft.reviewer?.trim() || "Analyst";
     const updated = updateCurrentRecord((record) => updateMemoRecord({ ...record, review: reviewDraft }, memoDraft, actor));
     if (updated) setMemoDraft(updated.memo);
+    setError(null);
   }, [memoDraft, reviewDraft, updateCurrentRecord]);
 
   const handleRegenerateMemo = useCallback(() => {
@@ -844,15 +1076,31 @@ export default function App() {
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
+            {SYSTEM_GUIDE_ENABLED && (
+              <button onClick={() => setShowGuide((current) => !current)} style={{ marginBottom: 10, background: showGuide ? `${C.blue}16` : "transparent", border: `1px solid ${C.blue}55`, color: C.blue, padding: "7px 12px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 10, letterSpacing: 1.1 }}>
+                {showGuide ? "HIDE METHOD / GUIDE" : "OPEN METHOD / GUIDE"}
+              </button>
+            )}
             <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted }}>{todayLabel || " "}</div>
             <div style={{ fontFamily: F.mono, fontSize: 9, color: C.border, marginTop: 3 }}>ADVISORY ONLY · v2.0</div>
           </div>
         </div>
 
-        {stage === "input" && <InputPanel portfolio={portfolio} setPortfolio={setPortfolio} onRun={onRun} error={error} onLoadDemo={loadDemoAnalysis} onOpenLatest={() => history[0] && openRecord(history[0].id)} historyCount={history.length} />}
+        {SYSTEM_GUIDE_ENABLED && (
+          <MethodGuidePanel
+            open={showGuide}
+            onClose={() => setShowGuide(false)}
+            systemDesign={systemDesign}
+            loading={systemDesignLoading}
+            loadError={systemDesignError}
+          />
+        )}
+
+        {stage === "input" && <InputPanel portfolio={portfolio} setPortfolio={setPortfolio} onRun={onRun} error={error} onLoadDemo={loadDemoAnalysis} onOpenLatest={() => history[0] && openRecord(history[0].id)} historyCount={history.length} marketContext={marketContext} marketContextLoading={marketContextLoading} marketContextError={marketContextError} onRefreshMarketContext={loadMarketContext} />}
         {stage === "running" && <PipeProgress step={step} />}
         {stage === "results" && currentRecord && (
           <div>
+            {error && <div style={{ background: C.red + "15", border: `1px solid ${C.red}40`, borderRadius: 6, padding: "12px 14px", color: C.red, fontFamily: F.mono, fontSize: 11, lineHeight: 1.6, marginBottom: 16 }}>⚠ {error}</div>}
             <Card style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
                 <div>
@@ -863,12 +1111,14 @@ export default function App() {
                     <Tag color={C.accent}>{currentRecord.analysisMeta.modelLabel}</Tag>
                     <Tag color={getReviewStatusColor(currentRecord.review.status)}>{currentRecord.review.status}</Tag>
                     <Tag color={C.red}>Escalation L{currentRecord.results.governance.escalationLevel}</Tag>
+                    {(currentRecord.analysisMeta.dataSources || []).map((source) => <Tag key={source} color={C.green}>{source}</Tag>)}
                   </div>
                 </div>
                 <div style={{ fontFamily: F.mono, fontSize: 11, lineHeight: 1.8, color: C.text, textAlign: "right" }}>
                   <div>Saved: {formatDateTime(currentRecord.updatedAt)}</div>
                   <div>Reviewer: {currentRecord.review.reviewer || "Unassigned"}</div>
                   <div>Audit Entries: {currentRecord.auditTrail.length}</div>
+                  <div>Market Data: {formatShortDate(currentRecord.analysisMeta.dataAsOf)}</div>
                 </div>
               </div>
             </Card>

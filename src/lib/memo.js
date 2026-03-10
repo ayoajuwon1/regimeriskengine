@@ -25,12 +25,18 @@ export function buildCommitteeMemo(record) {
 Generated: ${new Date(createdAt).toLocaleString("en-US")}
 Model: ${analysisMeta.provider} (${analysisMeta.modelLabel})
 Prompt Version: ${analysisMeta.promptVersion}
+System Design Version: ${analysisMeta.systemDesignVersion || "Not recorded"}
 Review Status: ${review.status}
+Market Data As Of: ${analysisMeta.dataAsOf ? new Date(analysisMeta.dataAsOf).toLocaleDateString("en-US") : "Not recorded"}
+Market Data Sources: ${(analysisMeta.dataSources || []).join(", ") || "Not recorded"}
+Intake Classification: ${analysisMeta.intakeClassification?.classificationSummary || "Not recorded"}
 
 ## Executive Summary
 ${headline}
 
 ${governance.decisionContext || "The portfolio requires a committee-ready summary before any action is taken."}
+
+${analysisMeta.marketSummary ? `Market context snapshot: ${analysisMeta.marketSummary}` : ""}
 
 ## Portfolio Snapshot
 Portfolio: ${portfolio.name || "Institutional Portfolio"}
@@ -38,6 +44,9 @@ Duration: ${portfolio.duration} years
 Leverage: ${portfolio.leverage}x
 Liquidity Profile: ${portfolio.liquidityProfile}
 Constraints: ${portfolio.constraints}
+
+Intake Classification Flags
+${bulletList(analysisMeta.intakeClassification?.concentrationFlags)}
 
 ${formatAllocationTable(portfolio.allocations)}
 

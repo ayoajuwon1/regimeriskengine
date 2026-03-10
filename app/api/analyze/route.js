@@ -1,10 +1,15 @@
 import OpenAI from "openai";
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
+
+import { executeStructuredAnalysis } from "./service.js";
+import { buildMarketContext } from "../../../src/lib/publicData/contextBuilder.js";
+import { MarketContextUnavailableError } from "../../../src/lib/publicData/helpers.js";
+import { systemInstruction } from "../../../src/lib/systemDesign/index.js";
 
 export const runtime = "nodejs";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-const SYSTEM_PROMPT = "You are a senior institutional portfolio risk strategist. Respond only with strict JSON that matches the supplied schema. Keep outputs concise, analytically precise, and suitable for institutional governance review.";
+export const SYSTEM_PROMPT = systemInstruction.text;
 
 export async function POST(request) {
   const { prompt, schema, schemaName } = await request.json().catch(() => ({}));
@@ -18,29 +23,23 @@ export async function POST(request) {
   }
 
   try {
+    const marketContext = await buildMarketContext();
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const response = await client.responses.create({
+    const result = await executeStructuredAnalysis({
+      client,
       model: MODEL,
-      store: false,
-      instructions: SYSTEM_PROMPT,
-      input: prompt,
-      text: {
-        format: {
-          type: "json_schema",
-          name: schemaName,
-          schema,
-          strict: true,
-        },
-      },
+      systemPrompt: SYSTEM_PROMPT,
+      prompt,
+      schemaName,
+      schema,
+      marketContext,
     });
-
-    const outputText = response.output_text?.trim();
-    if (!outputText) {
-      throw new Error("OpenAI returned an empty response.");
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof MarketContextUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
     }
 
-    return NextResponse.json(JSON.parse(outputText));
-  } catch (error) {
     const message = error instanceof Error ? error.message : "OpenAI request failed.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

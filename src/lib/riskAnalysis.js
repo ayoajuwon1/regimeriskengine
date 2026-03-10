@@ -1,8 +1,10 @@
+import { SYSTEM_DESIGN_VERSION } from "./systemDesign/constants.js";
+
 function normalizeApiBaseUrl(value) {
   return (value || "")
     .trim()
     .replace(/\/+$/, "")
-    .replace(/\/api(?:\/analyze)?$/i, "");
+    .replace(/\/api(?:\/analyze|\/data\/context|\/data\/series)?$/i, "");
 }
 
 const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
@@ -13,6 +15,11 @@ export const ANALYSIS_META = {
   modelLabel: process.env.NEXT_PUBLIC_ANALYSIS_MODEL_LABEL || "Configured OpenAI model",
   promptVersion: "v2.2",
   schemaVersion: "2026-03-10",
+  systemDesignVersion: SYSTEM_DESIGN_VERSION,
+  intakeClassification: null,
+  dataSources: [],
+  dataAsOf: null,
+  contextVersion: "public-data-v1",
 };
 
 const exposureScoreSchema = {
@@ -282,6 +289,75 @@ const stage4Schema = {
   },
 };
 
+export const OUTPUT_SCHEMA_SUMMARY = {
+  schemaVersion: ANALYSIS_META.schemaVersion,
+  stages: [
+    {
+      id: "stage1",
+      schemaName: "portfolio_exposure_map",
+      label: "Exposure Decomposition",
+      requiredTopLevelFields: ["analysisSummary", "exposureMap", "dominantExposures", "hiddenConcentrations"],
+      notableNestedFields: [
+        "exposureMap.inflationSensitivity",
+        "exposureMap.growthSensitivity",
+        "exposureMap.durationRisk",
+        "exposureMap.creditSpreadRisk",
+        "exposureMap.currencyExposure",
+        "exposureMap.liquidityDependence",
+      ],
+    },
+    {
+      id: "stage2",
+      schemaName: "portfolio_regimes",
+      label: "Regime Generation",
+      requiredTopLevelFields: ["regimeSetSummary", "regimes"],
+      notableNestedFields: [
+        "regimes[].name",
+        "regimes[].scenarioType",
+        "regimes[].probability",
+        "regimes[].historicalAnalogy",
+      ],
+    },
+    {
+      id: "stage3",
+      schemaName: "portfolio_vulnerabilities",
+      label: "Vulnerability Assessment",
+      requiredTopLevelFields: ["analysisSummary", "vulnerabilities"],
+      notableNestedFields: [
+        "vulnerabilities[].regimeName",
+        "vulnerabilities[].liquidityStress",
+        "vulnerabilities[].estimatedDrawdown",
+        "vulnerabilities[].vulnerabilityScore",
+      ],
+    },
+    {
+      id: "stage4",
+      schemaName: "portfolio_governance_metrics",
+      label: "Governance Metrics",
+      requiredTopLevelFields: [
+        "rci",
+        "lci",
+        "escalationLevel",
+        "escalationLabel",
+        "escalationRationale",
+        "escalationTriggers",
+        "governanceActions",
+        "counterScenario",
+        "keyWatchItems",
+        "decisionContext",
+        "humanValidationChecks",
+        "committeeMemoHeadline",
+      ],
+      notableNestedFields: [
+        "rci.score",
+        "lci.score",
+        "escalationTriggers[]",
+        "humanValidationChecks[]",
+      ],
+    },
+  ],
+};
+
 async function requestStructuredJson(prompt, schemaName, schema) {
   const response = await fetch(`${API_BASE_URL}/api/analyze`, {
     method: "POST",
@@ -294,12 +370,32 @@ async function requestStructuredJson(prompt, schemaName, schema) {
     throw new Error(payload?.error || `Request failed with status ${response.status}`);
   }
 
+  return {
+    data: payload?.data || payload,
+    analysisContext: payload?.analysisContext || null,
+  };
+}
+
+function formatIntakeClassification(classification) {
+  if (!classification) return "Unavailable";
+  return JSON.stringify(classification);
+}
+
+export async function fetchMarketContext() {
+  const response = await fetch(`${API_BASE_URL}/api/data/context`);
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(payload?.error || `Request failed with status ${response.status}`);
+  }
+
   return payload;
 }
 
-export function stage1(portfolio) {
+export function stage1(portfolio, intakeClassification) {
   return requestStructuredJson(
     `Portfolio: ${JSON.stringify(portfolio)}
+Intake classification: ${formatIntakeClassification(intakeClassification)}
 
 Assess the portfolio's macro-factor exposure map for an institutional investment committee.
 Return concise, decision-useful rationales that surface implicit factor bets and hidden concentrations.`,
@@ -308,7 +404,7 @@ Return concise, decision-useful rationales that surface implicit factor bets and
   );
 }
 
-export function stage2(portfolio, exposures) {
+export function stage2(portfolio, exposures, intakeClassification) {
   return requestStructuredJson(
     `Portfolio: ${JSON.stringify({
       allocations: portfolio.allocations,
@@ -317,6 +413,7 @@ export function stage2(portfolio, exposures) {
       constraints: portfolio.constraints,
       liquidityProfile: portfolio.liquidityProfile,
     })}
+Intake classification: ${formatIntakeClassification(intakeClassification)}
 Top exposures: ${JSON.stringify(exposures.dominantExposures)}
 Hidden concentrations: ${JSON.stringify(exposures.hiddenConcentrations)}
 
@@ -328,11 +425,12 @@ For each regime include a short historical analogy with parallels and difference
   );
 }
 
-export function stage3(portfolio, regimes) {
+export function stage3(portfolio, regimes, intakeClassification) {
   return requestStructuredJson(
     `Portfolio liquidity: ${portfolio.liquidityProfile}
 Portfolio leverage: ${portfolio.leverage}
 Portfolio constraints: ${portfolio.constraints}
+Intake classification: ${formatIntakeClassification(intakeClassification)}
 Regimes: ${JSON.stringify(regimes.map((regime) => ({
       id: regime.id,
       name: regime.name,
@@ -349,11 +447,12 @@ Make the liquidity implications explicit and concise.`,
   );
 }
 
-export function stage4(portfolio, exposures, vulnerabilities) {
+export function stage4(portfolio, exposures, vulnerabilities, intakeClassification) {
   return requestStructuredJson(
     `Portfolio name: ${portfolio.name || "Institutional Portfolio"}
 Portfolio leverage: ${portfolio.leverage}
 Portfolio liquidity: ${portfolio.liquidityProfile}
+Intake classification: ${formatIntakeClassification(intakeClassification)}
 Dominant exposures: ${JSON.stringify(exposures.dominantExposures)}
 Hidden concentrations: ${JSON.stringify(exposures.hiddenConcentrations)}
 Vulnerabilities: ${JSON.stringify(vulnerabilities.vulnerabilities)}

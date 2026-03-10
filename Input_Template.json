@@ -1,0 +1,44 @@
+{
+  "name": "Global Balanced Endowment",
+  "allocations": [
+    {
+      "assetClass": "Public Equity – Developed Markets",
+      "weight": 35,
+      "region": "Global DM"
+    },
+    {
+      "assetClass": "Investment Grade Fixed Income",
+      "weight": 20,
+      "region": "US"
+    },
+    {
+      "assetClass": "Private Equity",
+      "weight": 15,
+      "region": "North America"
+    },
+    {
+      "assetClass": "Real Assets / Infrastructure",
+      "weight": 10,
+      "region": "Global"
+    },
+    {
+      "assetClass": "High Yield / Credit",
+      "weight": 10,
+      "region": "US HY"
+    },
+    {
+      "assetClass": "Cash & Equivalents",
+      "weight": 5,
+      "region": "USD"
+    },
+    {
+      "assetClass": "Hedge Funds / Alternatives",
+      "weight": 5,
+      "region": "Global"
+    }
+  ],
+  "duration": 5.5,
+  "leverage": 1.0,
+  "liquidityProfile": "Mixed (40–80% liquid within 30 days)",
+  "constraints": "No short selling. Max 20% single asset class."
+}
