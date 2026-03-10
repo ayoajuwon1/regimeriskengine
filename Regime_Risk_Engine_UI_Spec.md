@@ -674,7 +674,7 @@ The Regime Risk Engine is a web application with a clean, dashboard-centric inte
 │                                                                     │
 │  • Portfolio snapshot: [View Portfolio as of Scan]                  │
 │  • AI reasoning chain: [View Full Chain — 847 tokens]              │
-│  • Model version: claude-opus-4-6                                     │
+│  • Model version: gpt-4.1-mini                                      │
 │  • Prompt version: v2.3.1                                          │
 │  • Knowledge base: Historical Regimes KB v1.2                      │
 │  • Escalation action: Memo generated, sent to committee            │
