@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Committee Memo - Global Balanced Endowment</title>
+    <style>
+      @page { size: letter; margin: 0.55in; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+        color: #18212b;
+        background: #ffffff;
+      }
+      .memo-shell {
+        max-width: 8in;
+        margin: 0 auto;
+        border: 1px solid #d8dee6;
+        padding: 28px 32px 34px;
+      }
+      .topline {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 10px;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: #516070;
+        margin-bottom: 18px;
+      }
+      .topline-rule {
+        flex: 1;
+        height: 1px;
+        background: #d5dce5;
+      }
+      .hero {
+        border-top: 4px solid #10273c;
+        border-bottom: 1px solid #d9e0e8;
+        padding: 20px 0 22px;
+        margin-bottom: 22px;
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.4fr 0.9fr;
+        gap: 24px;
+      }
+      .eyebrow {
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 11px;
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
+        color: #5a6775;
+        margin-bottom: 10px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 32px;
+        line-height: 1.06;
+        color: #0f2236;
+      }
+      .hero-subtitle {
+        margin: 14px 0 0;
+        font-size: 16px;
+        line-height: 1.65;
+        color: #2b3a48;
+      }
+      .status-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+      }
+      .status-pill {
+        display: inline-block;
+        border: 1px solid #c4ced9;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #15304c;
+        background: #ffffff;
+      }
+      .status-pill.primary {
+        background: #10273c;
+        border-color: #10273c;
+        color: #ffffff;
+      }
+      .tone-alert {
+        border-color: #9a3f3f;
+        color: #7d2222;
+      }
+      .tone-watch {
+        border-color: #a97812;
+        color: #7d5a0c;
+      }
+      .tone-clear {
+        border-color: #2f6b52;
+        color: #1f5a42;
+      }
+      .control-table,
+      .data-table,
+      .detail-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .control-table th,
+      .control-table td {
+        padding: 8px 0;
+        border-bottom: 1px solid #e5eaf0;
+        font-size: 12px;
+        vertical-align: top;
+      }
+      .control-table th {
+        width: 42%;
+        text-align: left;
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 10px;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: #596777;
+      }
+      .control-table td {
+        color: #1f2d3a;
+      }
+      .section {
+        margin-top: 24px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .section-label {
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 11px;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: #556474;
+        white-space: nowrap;
+      }
+      .section-line {
+        flex: 1;
+        height: 1px;
+        background: #dde4eb;
+      }
+      .section-title {
+        margin: 0 0 10px;
+        font-size: 23px;
+        line-height: 1.18;
+        color: #10253a;
+      }
+      .section-copy {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.72;
+        color: #253443;
+      }
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+      }
+      .summary-card {
+        border: 1px solid #d8e0e8;
+        border-top: 3px solid #274a70;
+        padding: 14px 14px 16px;
+        min-height: 122px;
+      }
+      .summary-label {
+        margin: 0 0 9px;
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 10px;
+        letter-spacing: 1.3px;
+        text-transform: uppercase;
+        color: #5c6a79;
+      }
+      .summary-value {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.05;
+        color: #10253a;
+      }
+      .summary-note {
+        margin: 8px 0 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #445463;
+      }
+      .matrix {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 18px;
+      }
+      .callout,
+      .note-panel {
+        border: 1px solid #d8e0e8;
+        padding: 16px 18px;
+      }
+      .callout {
+        border-left: 4px solid #173856;
+      }
+      .note-panel {
+        background: #fafbfd;
+      }
+      .callout-title,
+      .panel-title {
+        margin: 0 0 8px;
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 11px;
+        letter-spacing: 1.3px;
+        text-transform: uppercase;
+        color: #596979;
+      }
+      .callout-copy,
+      .panel-copy,
+      .metric-list li {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.64;
+        color: #243240;
+      }
+      .metric-list {
+        margin: 10px 0 0 18px;
+        padding: 0;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .info-card {
+        border: 1px solid #d8e0e8;
+        padding: 16px 18px;
+      }
+      .info-card h3 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: #536273;
+      }
+      .info-row {
+        margin: 0 0 8px;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .detail-table {
+        margin-top: 10px;
+      }
+      .detail-table th,
+      .detail-table td,
+      .data-table th,
+      .data-table td {
+        border-bottom: 1px solid #dde4ea;
+        padding: 9px 10px;
+        text-align: left;
+        font-size: 12px;
+        vertical-align: top;
+      }
+      .detail-table th,
+      .data-table th {
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 10px;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: #546272;
+      }
+      .detail-table td,
+      .data-table td {
+        line-height: 1.5;
+        color: #233240;
+      }
+      .empty-cell {
+        color: #667381;
+        font-style: italic;
+      }
+      .two-column-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .list-card {
+        border: 1px solid #d8e0e8;
+        padding: 16px 18px;
+        break-inside: avoid;
+      }
+      .list-card h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: #536273;
+      }
+      ul {
+        margin: 10px 0 0 18px;
+        padding: 0;
+      }
+      li {
+        margin-bottom: 7px;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .muted {
+        color: #66717c;
+        font-size: 12px;
+      }
+      .page-break {
+        page-break-before: always;
+        break-before: page;
+      }
+      .release-grid {
+        display: grid;
+        grid-template-columns: 0.95fr 1.05fr;
+        gap: 18px;
+      }
+      .footer {
+        margin-top: 26px;
+        border-top: 1px solid #d9e0e7;
+        padding-top: 14px;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.65px;
+        color: #5a6672;
+        text-transform: uppercase;
+      }
+      @media print {
+        body { background: #ffffff; }
+        .memo-shell { border: none; padding: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="memo-shell">
+      <div class="topline">
+        <span>Internal use only</span>
+        <span class="topline-rule"></span>
+        <span>RRE-20260311-SCAN58YY</span>
+      </div>
+
+      <section class="hero">
+        <div class="hero-grid">
+          <div>
+            <div class="eyebrow">Institutional Portfolio Regime Risk Memorandum</div>
+            <h1>Committee Memo - Global Balanced Endowment</h1>
+            <p class="hero-subtitle"><strong>Governance attention should center on liquidity resilience rather than point-estimate return forecasting.</strong> The portfolio is not in immediate crisis, but governance flexibility is narrower than the headline diversification profile suggests.</p>
+            <div class="status-row">
+              <span class="status-pill primary">Investment Committee</span>
+              <span class="status-pill tone-alert">Level 3 - Committee Review</span>
+              <span class="status-pill">Draft</span>
+            </div>
+          </div>
+          <div>
+            <table class="control-table">
+              <tbody><tr><th>Document ID</th><td>RRE-20260311-SCAN58YY</td></tr><tr><th>Prepared For</th><td>Investment Committee</td></tr><tr><th>Prepared By</th><td>Regime Risk Engine</td></tr><tr><th>Generated</th><td>3/10/2026, 8:17:10 PM</td></tr><tr><th>Updated</th><td>3/10/2026, 8:17:10 PM</td></tr><tr><th>Status</th><td>Draft</td></tr><tr><th>Workspace</th><td>Local Demo Workspace</td></tr><tr><th>Identity</th><td>Anonymous browser session</td></tr><tr><th>Model</th><td>OpenAI (gpt-4o-mini)</td></tr><tr><th>Prompt / Schema</th><td>v2.2 / 2026-03-10</td></tr><tr><th>System Design</th><td>2026-03-10</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <span class="section-label">Committee Action Summary</span>
+          <span class="section-line"></span>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <p class="summary-label">Recommended Action</p>
+            <p class="summary-value">Committee Review</p>
+            <p class="summary-note">Run a liquidity coverage review against capital calls and spending needs</p>
+          </div>
+          <div class="summary-card">
+            <p class="summary-label">RCI</p>
+            <p class="summary-value">58</p>
+            <p class="summary-note">Guarded. The main vulnerability channels are clear, but path dependency around inflation and liquidity remains meaningful.</p>
+          </div>
+          <div class="summary-card">
+            <p class="summary-label">LCI</p>
+            <p class="summary-value">67</p>
+            <p class="summary-note">Elevated. Liquid sleeves appear sufficient in normal conditions but can thin quickly if distributions slow and capital calls cluster.</p>
+          </div>
+          <div class="summary-card">
+            <p class="summary-label">Primary Vulnerability</p>
+            <p class="summary-value">9</p>
+            <p class="summary-note">Liquidity Vacuum in Private Markets: Mismatch between illiquid commitments and short-notice cash needs (9/10)</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <span class="section-label">Decision Framing</span>
+          <span class="section-line"></span>
+        </div>
+        <div class="matrix">
+          <div class="callout">
+            <p class="callout-title">Committee Question</p>
+            <p class="callout-copy">The portfolio is not in immediate crisis, but governance flexibility is narrower than the headline diversification profile suggests.</p>
+          </div>
+          <div class="note-panel">
+            <p class="panel-title">Decision Boundary</p>
+            <ul class="metric-list">
+              <li>Use this memorandum as a governance and scenario-planning aid, not a trade recommendation.</li>
+              <li>Escalate when liquidity resilience, forced-selling risk, or exposure overlap exceeds committee tolerance.</li>
+              <li>Confirm model outputs against current manager reporting and portfolio cash-flow data before release.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <span class="section-label">Portfolio and Market Context</span>
+          <span class="section-line"></span>
+        </div>
+        <div class="info-grid">
+          <div class="info-card">
+            <h3>Portfolio Snapshot</h3>
+            <p class="info-row"><strong>Portfolio:</strong> Global Balanced Endowment</p>
+            <p class="info-row"><strong>Duration:</strong> 5.8 years</p>
+            <p class="info-row"><strong>Leverage:</strong> 1.2x</p>
+            <p class="info-row"><strong>Liquidity Profile:</strong> Mixed (40–80% liquid within 30 days)</p>
+            <p class="info-row"><strong>Constraints:</strong> Preserve annual spending stability, avoid forced selling, maintain ESG exclusions.</p>
+            <p class="info-row"><strong>Intake Classification:</strong> Moderate complexity, mixed liquidity profile, moderate leverage, intermediate duration, sufficient market-context coverage.</p>
+          </div>
+          <div class="info-card">
+            <h3>Market Context and Provenance</h3>
+            <p class="info-row"><strong>Data As Of:</strong> 3/9/2026</p>
+            <p class="info-row"><strong>Sources:</strong> BLS, U.S. Treasury Fiscal Data</p>
+            <p class="info-row"><strong>Lead Exposure:</strong> Credit Spread Risk (8/10)</p>
+            <p class="info-row"><strong>Forced Selling Risk:</strong> High</p>
+            <p class="info-row"><strong>Uncertainty Band:</strong> Moderate</p>
+            <p class="section-copy">Rates remain restrictive and credit conditions are guarded.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <span class="section-label">Committee Actions and Watch Items</span>
+          <span class="section-line"></span>
+        </div>
+        <div class="two-column-list">
+          <div class="list-card">
+            <h3>Governance Actions</h3>
+            <ul><li>Run a liquidity coverage review against capital calls and spending needs</li><li>Stress-test the liquid sleeve required to defend the governance budget</li><li>Pre-approve escalation messaging for a sudden private-market liquidity shock</li></ul>
+          </div>
+          <div class="list-card">
+            <h3>Key Watch Items</h3>
+            <ul><li>Distribution pace from private funds</li><li>Refinancing spreads for HY and sponsor-backed borrowers</li><li>Cash buffer coverage for 12-month spending requirements</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section page-break">
+        <div class="section-header">
+          <span class="section-label">Scenario Register</span>
+          <span class="section-line"></span>
+        </div>
+        <h2 class="section-title">Regime Summary and Vulnerability Register</h2>
+        <p class="section-copy">The following tables are intended for committee review, challenge, and scenario comparison. They should be read alongside human validation checks and current portfolio cash-flow evidence.</p>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Scenario</th>
+              <th>Probability</th>
+              <th>Horizon</th>
+              <th>Trigger</th>
+              <th>Key Risk</th>
+            </tr>
+          </thead>
+          <tbody><tr><td>Sticky Inflation, Restrictive Rates</td><td>Medium</td><td>6-18M</td><td>Services inflation stalls above target and central banks hold policy tight for longer than markets expect.</td><td>Private valuations and credit spreads reprice faster than spending needs adjust.</td></tr><tr><td>Growth Slowdown with Credit Strain</td><td>Medium</td><td>3-12M</td><td>Labor demand weakens and earnings revisions turn sharply negative while defaults begin to rise.</td><td>Spread widening and delayed private-market markdowns obscure the true loss path.</td></tr><tr><td>Liquidity Vacuum in Private Markets</td><td>Low</td><td>0-6M</td><td>A policy or market accident causes secondary market liquidity to gap lower and refinancing windows to close temporarily.</td><td>Forced selling risk rises even if long-term asset values are not permanently impaired.</td></tr></tbody>
+        </table>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Regime</th>
+              <th>Score</th>
+              <th>Estimated Drawdown</th>
+              <th>Liquidity Stress</th>
+              <th>Primary Vulnerability</th>
+            </tr>
+          </thead>
+          <tbody><tr><td>Sticky Inflation, Restrictive Rates</td><td>7/10</td><td>-7% to -11%</td><td>Medium</td><td>Financing-sensitive private assets repricing alongside weaker liquid buffers</td></tr><tr><td>Growth Slowdown with Credit Strain</td><td>8/10</td><td>-9% to -14%</td><td>High</td><td>Cyclical overlap across public equity, HY, and sponsor-backed private assets</td></tr><tr><td>Liquidity Vacuum in Private Markets</td><td>9/10</td><td>-6% to -10%</td><td>Critical</td><td>Mismatch between illiquid commitments and short-notice cash needs</td></tr></tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <span class="section-label">Exposure Detail</span>
+          <span class="section-line"></span>
+        </div>
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>Exposure</th>
+              <th>Score</th>
+              <th>Interpretation</th>
+            </tr>
+          </thead>
+          <tbody><tr><td>Credit Spread Risk</td><td>8/10</td><td>Credit stress is a primary transmission channel because spreads and financing availability hit multiple sleeves at once.</td></tr><tr><td>Liquidity Dependence</td><td>8/10</td><td>The portfolio depends on public-market liquidity to fund obligations while private assets reprice slowly.</td></tr><tr><td>Growth Sensitivity</td><td>7/10</td><td>Growth disappointments would flow quickly into public equity and more slowly into private marks.</td></tr><tr><td>Inflation Sensitivity</td><td>6/10</td><td>Inflation protection exists, but it is offset by rate-sensitive growth and private valuations.</td></tr><tr><td>Duration Risk</td><td>5/10</td><td>Duration is meaningful but not dominant relative to cyclical and liquidity risk.</td></tr><tr><td>Currency Exposure</td><td>4/10</td><td>Currency risk is present but secondary because most liabilities and liquid reserves are USD-based.</td></tr></tbody>
+        </table>
+
+        <div class="two-column-list">
+          <div class="list-card">
+            <h3>Dominant Exposures</h3>
+            <ul><li>Credit spread widening across public and private books</li><li>Liquidity dependence driven by private capital and spending needs</li></ul>
+          </div>
+          <div class="list-card">
+            <h3>Hidden Concentrations</h3>
+            <ul><li>Infrastructure and private equity both rely on benign refinancing markets</li><li>Public equity and HY sleeves share the same pro-cyclical growth exposure</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <span class="section-label">Portfolio Allocation</span>
+          <span class="section-line"></span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Asset Class</th>
+              <th>Weight</th>
+              <th>Region / Focus</th>
+            </tr>
+          </thead>
+          <tbody><tr><td>Public Equity – Developed Markets</td><td>32%</td><td>US / Europe</td></tr><tr><td>Investment Grade Fixed Income</td><td>18%</td><td>US</td></tr><tr><td>Private Equity</td><td>17%</td><td>North America</td></tr><tr><td>Real Assets / Infrastructure</td><td>11%</td><td>Global</td></tr><tr><td>High Yield / Credit</td><td>9%</td><td>US / Europe</td></tr><tr><td>Private Credit</td><td>6%</td><td>North America</td></tr><tr><td>Cash &amp; Equivalents</td><td>4%</td><td>USD</td></tr><tr><td>Hedge Funds / Alternatives</td><td>3%</td><td>Global</td></tr></tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <span class="section-label">Release Controls</span>
+          <span class="section-line"></span>
+        </div>
+        <div class="release-grid">
+          <div class="info-card">
+            <h3>Human Validation</h3>
+            <p class="info-row"><strong>Reviewer:</strong> Unassigned</p>
+            <p class="info-row"><strong>Status:</strong> Pending Review</p>
+            <p class="info-row"><strong>Reviewed At:</strong> Not recorded</p>
+            <p class="info-row"><strong>Override:</strong> None</p>
+            <p class="info-row"><strong>Override Rationale:</strong> No override rationale recorded.</p>
+            <p class="section-copy">No reviewer notes recorded.</p>
+          </div>
+          <div class="info-card">
+            <h3>Validation and Escalation Controls</h3>
+            <ul><li>Structural validity: Pending</li><li>Scenario diversity: Pending</li><li>Liquidity fragility reviewed: Pending</li><li>Governance communication ready: Pending</li></ul>
+            <h3 style="margin-top:18px;">Escalation Triggers</h3>
+            <ul><li>LCI remains above 60 for two consecutive reviews</li><li>Private-market distributions slow materially versus spending needs</li><li>Credit spreads widen while refinancing markets weaken</li></ul>
+            <h3 style="margin-top:18px;">Counter-Scenario</h3>
+            <p class="section-copy">A soft landing with faster disinflation would preserve liquidity and make current caution look overly defensive, especially if private exits re-open.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        <span>Advisory only. Human review required before committee use.</span>
+        <span>Not investment advice, legal advice, or compliance sign-off.</span>
+      </div>
+    </div>
+  </body>
+</html>

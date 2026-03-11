@@ -2,71 +2,83 @@
 
 Date: March 10, 2026
 
-## Purpose
+## 1. Purpose
 
-Document how GenAI was used in the creation of the system, the packet, and the evaluation materials.
+Document the tools, models, prompts, data sources, and human-vs-AI authorship split used to create the prototype evidence and submission packet.
 
-## Tools Used
+## 2. System Runtime Components
 
-### 1. Product / Prototype Repository
+| Component | Version / Mode | Purpose |
+|---|---|---|
+| Next.js | `16.1.6` | app runtime and API routes |
+| React | `19.2.4` | UI layer |
+| OpenAI JavaScript SDK | `6.6.0` | model integration |
+| Test runner | `node --test` | regression validation |
+| Build pipeline | `next build` | production compilation check |
 
-- Next.js 16.1.6 application
-- OpenAI JavaScript SDK 6.6.0
-- Local automated test runner: `node --test`
-- Local production build: `next build`
+## 3. Model Usage
 
-### 2. Runtime Model
+| Use Case | Model / Interface | Notes |
+|---|---|---|
+| Structured stage generation | OpenAI Responses API | server-side, JSON-schema constrained |
+| Local observed runtime label | `gpt-4o-mini` | as documented in local environment during testing |
+| Output format enforcement | `json_schema` response formatting | strict schema mode |
 
-- Application runtime model: `gpt-4o-mini` in the current local environment
-- Runtime interface: OpenAI Responses API via server-side route
+## 4. External Data Used By The Current Prototype
 
-### 3. External Data Sources Used By The System
+| Source | Current Role | Notes |
+|---|---|---|
+| BLS | inflation / labor context | active in observed runtime |
+| U.S. Treasury Fiscal Data | rates curve context | active in observed runtime |
+| FRED | optional | configured as fallback / enhancement when key present |
+| BEA | optional | configured as fallback / enhancement when key present |
 
-- U.S. Treasury Fiscal Data
-- BLS
-- Optional FRED
-- Optional BEA
+## 5. Authoring Tasks Where AI Assistance Was Used
 
-### 4. AI-Assisted Authoring
+| Deliverable Area | AI Role | Human Role |
+|---|---|---|
+| System-design packet drafting | draft structure and initial language | review, correction, acceptance |
+| Evaluation report | synthesized test evidence into report format | validated framing, selected what to emphasize |
+| Risk analysis | drafted first-pass failure register | reviewed realism, severity, and mitigations |
+| Presentation content | drafted slide narrative and Q&A | final presentation judgment and speaking style |
 
-- AI-assisted drafting and structuring of capstone markdown deliverables
-- AI-assisted synthesis of evaluation evidence into the final report
+## 6. Prompt Categories Used During Packet Development
 
-## Key Prompts / Tasks Used In The Authoring Process
+The AI was used for the following classes of prompt work:
 
-- define the system instruction, interaction guide, input template, and structured output schema
-- document the workflow, refusal rules, human review, and escalation design
-- generate executive-summary and presentation-ready capstone materials
-- evaluate the current implementation against the rubric and document test results
-- convert implementation evidence into a governance-ready capstone packet
+- system-design artifact drafting
+- workflow and guardrail articulation
+- evaluation evidence synthesis
+- failure-mode enumeration
+- executive-summary and presentation writing
 
-## Human vs AI Authorship
+No claim is made that AI authored the project idea, user selection, or business rationale independently.
 
-### Human Authorship
+## 7. Human Authorship And Accountability
 
-- product idea and problem framing
-- target user selection
-- project direction and acceptance criteria
-- selection of which deliverables to include
-- final judgment on whether the packet is submission-ready
+### Human-owned decisions
 
-### AI-Assisted Content
+- product problem selection
+- target user and financial context
+- control posture and desired risk appetite
+- decision to emphasize enterprise realism
+- final acceptance of submission materials
 
-- first-draft markdown for capstone deliverables
-- structure and wording of system packet documents
-- synthesis of live and automated test evidence
-- first-draft failure-mode register and rubric crosswalk
+### AI-assisted drafting
 
-### Human Review Required
+- first-draft language for markdown deliverables
+- restructuring of documents into submission-ready format
+- synthesis of observed test outputs into tables and narratives
 
-All submission artifacts should be treated as AI-assisted first drafts until a team member confirms:
+## 8. Transparency Boundary
 
-- course compliance
-- tone and presentation style
-- factual consistency with the demo you will present
-- alignment with the enterprise no-code / low-code tool you intend to show
+This log is intentionally explicit: the deliverables are AI-assisted, but they remain human-directed and human-accountable. The use of AI drafting does not transfer authorship responsibility away from the submitting team.
 
-## Limitations
+## 9. Reviewer Checklist For Final Submission
 
-- AI-assisted writing does not substitute for faculty-required human authorship accountability.
-- The runtime model and public data sources are documented as observed in the local environment on March 10, 2026.
+Before final submission, a human team member should confirm:
+
+- every file matches the demo you will actually show
+- the no-code / low-code deployment story matches the approved platform you will present
+- the curated-pack story is reflected consistently across docs and demo
+- any course-policy requirements around AI disclosure are fully satisfied

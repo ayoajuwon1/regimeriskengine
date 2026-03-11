@@ -2,33 +2,43 @@
 
 ## Objective
 
-Define when the system flags elevated governance attention and what human action follows.
+Define how elevated governance concern is surfaced, reviewed, and acted on.
 
-## Escalation Inputs
+## Inputs To Escalation
 
 - Regime Confidence Index (`RCI`)
 - Liquidity Compression Index (`LCI`)
-- reviewer judgment
 - intake-classification concentration flags
-- human validation findings
+- vulnerability findings
+- reviewer judgment
 
-## Proposed Levels
+## Escalation Levels
 
-| Level | Trigger | Expected Human Action |
-|---|---|---|
-| 1. Monitor | Well-supported output, low liquidity concern | retain as monitored analysis |
-| 2. Review | Moderate uncertainty or moderate liquidity concern | reviewer validates and prepares committee context |
-| 3. Committee Review | elevated fragility, higher uncertainty, or material concentration flags | move to committee discussion |
-| 4. Immediate Escalation | severe liquidity compression, low confidence, or material governance concern | immediate senior review and formal committee escalation |
+| Level | Label | Typical Trigger | Expected Action |
+|---|---|---|---|
+| 1 | Monitor | low fragility, strong confidence | keep under monitoring |
+| 2 | Review | moderate fragility or uncertainty | reviewer validates and prepares committee context |
+| 3 | Committee Review | material liquidity, leverage, or concentration concern | take to committee with explicit discussion points |
+| 4 | Immediate Escalation | severe governance concern or acute liquidity stress | urgent senior review and committee escalation |
 
-## Override Rules
+## Escalation Principles
 
-- reviewer may override the model’s escalation level
-- every override requires written rationale
-- override is preserved in the audit trail
+- the model proposes an escalation level
+- the reviewer owns final escalation treatment
+- if the reviewer overrides the level, the rationale must be recorded
+- the audit trail must preserve both proposal and override context
 
-## Accountability
+## Examples
 
-- model proposes
-- human reviewer confirms or overrides
-- committee receives only reviewed content
+| Situation | Expected Escalation Direction |
+|---|---|
+| moderate mixed-liquidity portfolio with manageable stress | Level 1–2 |
+| alternatives-heavy portfolio with unresolved liquidity assumptions | Level 2–3 |
+| leveraged illiquid portfolio with distribution pressure and covenant concern | Level 3–4 |
+
+## Review Questions For Escalation
+
+- is the model under-reacting to liquidity fragility?
+- is the model over-reacting to manageable diversification?
+- are concentration flags being translated into the right governance urgency?
+- does the memo clearly explain why the escalation level is what it is?

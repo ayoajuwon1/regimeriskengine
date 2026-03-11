@@ -1,5 +1,6 @@
-import { buildCommitteeMemo } from "./memo";
-import { DEMO_ANALYSIS_META, DEMO_PORTFOLIO, DEMO_RESULTS } from "./sampleAnalysis";
+import { buildCommitteeMemo } from "./memo.js";
+import { getAccessContext } from "./accessContext.js";
+import { DEMO_ANALYSIS_META, DEMO_PORTFOLIO, DEMO_RESULTS } from "./sampleAnalysis.js";
 
 const STORAGE_KEY = "regime-risk-engine.history.v2";
 
@@ -13,6 +14,14 @@ function nowIso() {
 
 function sortByUpdatedAt(records) {
   return [...records].sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt));
+}
+
+function defaultArchiveFields() {
+  return {
+    archivedAt: null,
+    archivedBy: null,
+    archiveReason: null,
+  };
 }
 
 function defaultChecklist() {
@@ -33,6 +42,38 @@ function defaultReview() {
     escalationOverrideReason: "",
     reviewedAt: null,
     checklist: defaultChecklist(),
+  };
+}
+
+function defaultAccessContext() {
+  return getAccessContext("local-demo");
+}
+
+export function normalizeAnalysisRecord(record) {
+  if (!record || typeof record !== "object") return null;
+
+  return {
+    ...defaultArchiveFields(),
+    ...record,
+    analysisMeta: {
+      accessContext: defaultAccessContext(),
+      ...(record.analysisMeta || {}),
+    },
+    review: {
+      ...defaultReview(),
+      ...(record.review || {}),
+      checklist: {
+        ...defaultChecklist(),
+        ...(record.review?.checklist || {}),
+      },
+    },
+    memo: {
+      title: record.memo?.title || `Committee Memo - ${record.portfolio?.name || "Portfolio Review"}`,
+      content: record.memo?.content || "",
+      status: record.memo?.status || "Draft",
+      updatedAt: record.memo?.updatedAt || record.updatedAt || nowIso(),
+    },
+    auditTrail: Array.isArray(record.auditTrail) ? record.auditTrail : [],
   };
 }
 
@@ -61,6 +102,7 @@ export function createAnalysisRecord({ portfolio, results, analysisMeta }) {
   const createdAt = nowIso();
   const review = defaultReview();
   const record = {
+    ...defaultArchiveFields(),
     id: makeId("scan"),
     title: buildRecordTitle(portfolio, createdAt),
     createdAt,
@@ -121,7 +163,9 @@ export function loadAnalysisHistory() {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? sortByUpdatedAt(parsed) : [];
+    return Array.isArray(parsed)
+      ? sortByUpdatedAt(parsed.map(normalizeAnalysisRecord).filter(Boolean))
+      : [];
   } catch {
     return [];
   }
@@ -134,7 +178,7 @@ export function saveAnalysisHistory(records) {
 
 export function upsertAnalysisRecord(records, record) {
   const next = records.filter((entry) => entry.id !== record.id);
-  next.unshift(record);
+  next.unshift(normalizeAnalysisRecord(record));
   return sortByUpdatedAt(next);
 }
 
@@ -196,6 +240,30 @@ export function regenerateMemoRecord(record, actor = "System") {
   return nextRecord;
 }
 
+export function archiveAnalysisRecord(record, {
+  actor = "Analyst",
+  reason = "Removed from local workspace.",
+} = {}) {
+  const updatedAt = nowIso();
+  const archiveMessage = record.analysisMeta?.accessContext?.mode === "local-demo"
+    ? "Analysis removed from the local browser workspace."
+    : "Analysis archived from the active record library.";
+
+  return {
+    ...record,
+    updatedAt,
+    archivedAt: updatedAt,
+    archivedBy: actor,
+    archiveReason: reason,
+    auditTrail: [
+      createAuditEvent("analysis.archived", actor, archiveMessage, {
+        archiveReason: reason,
+      }),
+      ...record.auditTrail,
+    ],
+  };
+}
+
 export function buildAuditExport(record) {
   return JSON.stringify(
     {
@@ -204,6 +272,9 @@ export function buildAuditExport(record) {
         title: record.title,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
+        archivedAt: record.archivedAt,
+        archivedBy: record.archivedBy,
+        archiveReason: record.archiveReason,
         analysisMeta: record.analysisMeta,
       },
       review: record.review,

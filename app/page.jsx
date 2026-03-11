@@ -1,5 +1,5 @@
-import App from "../src/App";
+import AppClient from "./AppClient";
 
 export default function HomePage() {
-  return <App />;
+  return <AppClient />;
 }

@@ -2,51 +2,83 @@
 
 ## Regime Risk Engine
 
-### User and Business Problem
+### User
 
-The primary user is an institutional investment advisor or CIO-support team member responsible for preparing risk narratives and governance materials for an investment committee. Today, these users rely on backward-looking tools such as VaR, historical stress tests, and ad hoc committee memos. Those tools are useful for explaining what has already happened, but weak at framing what could happen next and how a specific multi-asset portfolio is exposed.
+Institutional investment advisors, CIO-office analysts, and risk/governance staff responsible for preparing committee-ready portfolio risk materials.
 
-The business problem is straightforward: advisors need a repeatable, auditable way to translate a portfolio’s asset mix, liquidity profile, leverage, and constraints into forward-looking regime scenarios, vulnerability analysis, and governance actions that a regulated institution can review and defend.
+### Business Problem
 
-### Solution in Plain English
+Institutional investment committees often receive two weak substitutes for forward-looking risk governance:
 
-Regime Risk Engine is a workflow-driven GenAI system for institutional portfolio regime-risk analysis. A user enters a structured portfolio template rather than free-form chat. The system first creates an intake-classification artifact that summarizes portfolio complexity, liquidity tier, leverage, duration bucket, concentration flags, and market-context coverage. It then runs a four-step analysis:
+- backward-looking quantitative outputs such as VaR or historical stress tests
+- ad hoc narrative memos assembled manually from portfolio data, market commentary, and analyst judgment
 
-1. Exposure decomposition
-2. Regime generation
-3. Vulnerability assessment
-4. Governance and escalation scoring
+The first is often too retrospective. The second is often inconsistent, slow, and difficult to audit. The result is a governance gap: committees need a repeatable way to translate a portfolio’s structure into plausible future regimes, vulnerability pathways, and escalation actions before the regime shift arrives.
 
-The output is not a conversation. It is a structured set of artifacts for committee use: exposure map, three regime scenarios, vulnerability matrix, governance metrics, human validation checks, and an editable committee memo tied to an audit trail.
+### Proposed Solution
 
-### Key Risks and Controls
+Regime Risk Engine is a workflow-driven GenAI decision-support system for institutional portfolio regime-risk analysis.
 
-The main risk is not that the model fails noisily. The main risk is that it sounds plausible while being used beyond its mandate. The design therefore emphasizes control over creativity.
+The user does not “chat” with the model. The user submits a structured portfolio template. The system then:
 
-- Structured input template limits ambiguity and reduces prompt drift.
-- Structured output schemas force the model into known response shapes.
-- Explicit refusal policy prohibits investment advice, fabricated facts, performance predictions, and legal or compliance sign-off.
-- Human review is mandatory before committee circulation.
-- Escalation overrides require written rationale.
-- Memo release to committee is gated by validated or escalated review status.
-- Audit trail records analysis metadata, market-context provenance, classification summary, review actions, and memo lifecycle changes.
+1. creates a deterministic intake-classification artifact
+2. generates a four-stage structured analysis
+3. forces human review before committee use
+4. produces a committee-oriented memo plus audit metadata
 
-### What the System Will Do
+### Why This Matters
 
-- Analyze a structured institutional portfolio.
-- Generate forward-looking but schema-constrained macro regime scenarios.
-- Highlight vulnerability drivers and liquidity fragility.
-- Produce governance-oriented outputs for investment committee review.
-- Preserve uncertainty and force human review.
+The product is designed to improve the quality and consistency of committee preparation, not to automate fiduciary judgment. That is the core operating principle.
 
-### What the System Will Not Do
+## At-A-Glance System Design
 
-- Provide personalized investment advice.
-- Recommend trades, tickers, or timing decisions.
-- Predict benchmark outperformance.
-- Invent missing data.
-- Replace fiduciary, legal, compliance, or committee judgment.
+| Category | Design Choice |
+|---|---|
+| Operating model | Structured workflow, not free-form chat |
+| Primary input | Structured portfolio template with allocations, duration, leverage, liquidity, and constraints |
+| Primary output | Exposure map, regime set, vulnerability matrix, governance metrics, validation checks, and committee memo |
+| Guardrail posture | No investment advice, no named security recommendations, no fabricated facts, no compliance sign-off |
+| Human control | Mandatory review before committee use |
+| Escalation | Model proposes; human reviewer confirms or overrides with rationale |
+| Evidence posture | Current prototype uses server-attached public market context; capstone deployment model uses curated uploaded packs |
 
-### Why This Matters in a Regulated Institution
+## What The System Will Do
 
-This system is designed as a decision-support layer, not an autonomous advisor. That distinction is central. In a regulated environment, the question is not whether the AI can generate impressive narratives. The question is whether the institution can explain how the output was produced, what constraints applied, where humans intervened, and how misuse is prevented. Regime Risk Engine is designed to answer those questions clearly.
+- analyze a structured institutional portfolio
+- identify dominant macro and liquidity exposures
+- generate three distinct macro regime scenarios
+- assess first-order and second-order vulnerabilities
+- produce governance-oriented escalation guidance
+- preserve uncertainty and force human validation
+
+## What The System Will Not Do
+
+- recommend trades, tickers, or timing decisions
+- answer retail-investor style questions
+- predict benchmark outperformance
+- invent missing holdings facts, side-letter terms, or manager-specific liquidity rights
+- replace the committee, reviewer, legal, compliance, or fiduciary decision-maker
+
+## Risks And Controls
+
+| Key Risk | Why It Matters | Primary Controls |
+|---|---|---|
+| Advice slippage | Could create fiduciary or reputational risk | refusal policy, structured schema, human review gating |
+| Plausible but weak reasoning | AI may sound convincing while being wrong or incomplete | validation checklist, escalation design, documented failure testing |
+| Input incompleteness | Garbage-in can create false confidence | structured template, intake classification, reviewer accountability |
+| Governance bypass | Unreviewed output may circulate as if approved | memo-state gating, reviewer identity, audit trail |
+| Data-boundary confusion | Users may over-assume what evidence was available | provenance metadata, data-boundary documentation, curated-pack deployment plan |
+
+## Evidence From The Current Prototype
+
+| Evidence Item | Result |
+|---|---|
+| Automated regression suite | 16 / 16 checks passed |
+| Production build | Passed |
+| Local health checks | `/` and `/api/system-design` returned `200` |
+| Required live scenario set | happy path, ambiguous input, adversarial input, and out-of-scope request all executed and documented |
+| Guardrail leakage | 0 prohibited ticker/advice terms observed in the adversarial and out-of-scope live cases |
+
+## Leadership Takeaway
+
+This is not an “AI advisor.” It is a controlled portfolio-governance system designed to produce an auditable first draft of regime-risk reasoning. Its value is not raw model cleverness. Its value is disciplined workflow, explicit boundaries, human accountability, and repeatable committee preparation.

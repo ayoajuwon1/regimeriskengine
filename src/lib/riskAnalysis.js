@@ -16,6 +16,7 @@ export const ANALYSIS_META = {
   promptVersion: "v2.2",
   schemaVersion: "2026-03-10",
   systemDesignVersion: SYSTEM_DESIGN_VERSION,
+  accessContext: null,
   intakeClassification: null,
   dataSources: [],
   dataAsOf: null,

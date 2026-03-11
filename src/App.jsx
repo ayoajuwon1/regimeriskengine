@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  archiveAnalysisRecord,
   buildAuditExport,
   createDemoAnalysisRecord,
   createAnalysisRecord,
@@ -13,7 +14,8 @@ import {
   updateReviewRecord,
   upsertAnalysisRecord,
 } from "./lib/analysisStore";
-import { downloadTextFile } from "./lib/memo";
+import { downloadTextFile, exportMemoPdf } from "./lib/memo";
+import { getAccessContext } from "./lib/accessContext.js";
 import { ANALYSIS_META, fetchMarketContext, stage1, stage2, stage3, stage4 } from "./lib/riskAnalysis";
 import { fetchSystemDesign } from "./lib/systemDesign/client.js";
 import { buildIntakeClassification } from "./lib/systemDesign/classification.js";
@@ -31,6 +33,7 @@ const PIPE_LABELS = [
   "Drafting governance metrics and memo package",
 ];
 const SYSTEM_GUIDE_ENABLED = isSystemGuideEnabled();
+const ACCESS_CONTEXT = getAccessContext();
 const DEFAULT_PORTFOLIO = {
   name: "Global Balanced Endowment",
   allocations:[
@@ -63,6 +66,14 @@ const C = {
   blue: "#2255A0",
 };
 const F = { serif: "'Crimson Pro', Georgia, serif", mono: "'IBM Plex Mono', 'Courier New', monospace" };
+const DEFAULT_MEMO_ACTION_STATE = {
+  saveState: "idle",
+  regenerateState: "idle",
+  exportState: { markdown: "idle", pdf: "idle" },
+  lastSavedAt: null,
+  lastMessage: "",
+  lastMessageTone: "muted",
+};
 
 const EXP_LABELS = {
   inflationSensitivity: "Inflation Sensitivity",
@@ -95,6 +106,25 @@ function formatShortDate(value) {
 
 function safeFilename(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function getArchiveActionLabel(accessContext) {
+  return accessContext.mode === "local-demo" ? "REMOVE FROM THIS BROWSER" : "ARCHIVE ANALYSIS";
+}
+
+function getTopExposureSummaries(exposureMap = {}) {
+  return Object.entries(exposureMap)
+    .map(([key, value]) => ({
+      label: key.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase()),
+      score: value?.score || 0,
+      interpretation: value?.interpretation || "No interpretation recorded.",
+    }))
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 3);
+}
+
+function getPrimaryVulnerability(vulnerabilities = []) {
+  return [...vulnerabilities].sort((left, right) => (right.vulnerabilityScore || 0) - (left.vulnerabilityScore || 0))[0] || null;
 }
 
 function getReviewStatusColor(status) {
@@ -265,6 +295,19 @@ function MarketContextCard({ marketContext, loading, loadError, onRefresh }) {
   );
 }
 
+function AccessContextCard({ accessContext }) {
+  return (
+    <Card hl={accessContext.mode === "local-demo" ? C.orange : C.blue}>
+      <Lbl>Workspace Access</Lbl>
+      <div style={{ fontFamily: F.serif, fontSize: 18, color: C.text, marginBottom: 8 }}>{accessContext.displayLabel}</div>
+      <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted, marginBottom: 12 }}>{accessContext.identityStatus}</div>
+      <SectionBullets items={accessContext.limitations} color={accessContext.mode === "local-demo" ? C.orange : C.blue} />
+      <div style={{ marginTop: 12, fontFamily: F.mono, fontSize: 10, color: C.muted }}>Target operating posture</div>
+      <SectionBullets items={accessContext.expectations} color={C.green} />
+    </Card>
+  );
+}
+
 function MethodGuidePanel({ open, onClose, systemDesign, loading, loadError }) {
   if (!open) return null;
 
@@ -346,7 +389,7 @@ function MethodGuidePanel({ open, onClose, systemDesign, loading, loadError }) {
   );
 }
 
-function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenLatest, historyCount, marketContext, marketContextLoading, marketContextError, onRefreshMarketContext }) {
+function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenLatest, historyCount, marketContext, marketContextLoading, marketContextError, onRefreshMarketContext, accessContext }) {
   const total = portfolio.allocations.reduce((s, a) => s + (Number(a.weight) || 0), 0);
   const valid = Math.abs(total - 100) < 0.5;
   const inp = { background: "#050810", border: `1px solid ${C.border}`, color: C.text, fontFamily: F.mono, fontSize: 12, padding: "6px 10px", borderRadius: 4, width: "100%" };
@@ -397,6 +440,8 @@ function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenL
           <Lbl>Governance Coverage</Lbl>
           <SectionBullets items={["Live analysis saves into a local audit trail", "Review workflow supports validation and escalation overrides", "Committee memo is editable and exportable", "Historical analogs and rationale summaries are preserved per scenario"]} color={C.blue} />
         </Card>
+
+        <AccessContextCard accessContext={accessContext} />
 
         <MarketContextCard
           marketContext={marketContext}
@@ -678,7 +723,30 @@ function GovernanceTab({ gov, reviewDraft, onReviewChange, onSaveReview, onExpor
   );
 }
 
-function MemoTab({ memoDraft, onMemoChange, onSaveMemo, onRegenerateMemo, onExportMemo, reviewDraft, analysisMeta }) {
+function MemoTab({
+  memoDraft,
+  onMemoChange,
+  onSaveMemo,
+  onRegenerateMemo,
+  onExportMarkdown,
+  onExportPdf,
+  reviewDraft,
+  analysisMeta,
+  accessContext,
+  memoUiState,
+}) {
+  const statusColorMap = {
+    idle: C.muted,
+    working: C.blue,
+    success: C.green,
+    error: C.red,
+  };
+  const saveDisabled = memoUiState.saveState === "working";
+  const regenerateDisabled = memoUiState.regenerateState === "working";
+  const exportMarkdownDisabled = memoUiState.exportState.markdown === "working";
+  const exportPdfDisabled = memoUiState.exportState.pdf === "working";
+  const helperColor = statusColorMap[memoUiState.lastMessageTone] || C.muted;
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
       <Card>
@@ -694,6 +762,16 @@ function MemoTab({ memoDraft, onMemoChange, onSaveMemo, onRegenerateMemo, onExpo
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <Card>
           <Lbl>Memo Controls</Lbl>
+          <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 6, background: `${helperColor}14`, border: `1px solid ${helperColor}35` }}>
+            <div style={{ fontFamily: F.mono, fontSize: 10, color: helperColor, marginBottom: memoUiState.lastSavedAt ? 4 : 0 }}>
+              {memoUiState.lastMessage || "Markdown remains the editable working memo. PDF export uses the structured analysis and review state for committee-ready formatting."}
+            </div>
+            {memoUiState.lastSavedAt && (
+              <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted }}>
+                Last memo update: {formatDateTime(memoUiState.lastSavedAt)}
+              </div>
+            )}
+          </div>
           <div style={{ marginBottom: 12 }}>
             <Lbl>Status</Lbl>
             <select value={memoDraft.status} onChange={(e) => onMemoChange("status", e.target.value)} style={{ width: "100%", background: "#050810", border: `1px solid ${C.border}`, color: C.text, fontFamily: F.mono, fontSize: 12, padding: "8px 10px", borderRadius: 4 }}>
@@ -701,13 +779,21 @@ function MemoTab({ memoDraft, onMemoChange, onSaveMemo, onRegenerateMemo, onExpo
             </select>
             <div style={{ marginTop: 4, fontFamily: F.mono, fontSize: 10, color: C.muted }}>Committee-ready memo states require a review status of Validated or Escalated.</div>
           </div>
-          <button onClick={onSaveMemo} style={{ background: C.accent, border: "none", color: "#020509", padding: "12px 14px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, width: "100%", marginBottom: 10 }}>SAVE MEMO</button>
-          <button onClick={onRegenerateMemo} style={{ background: "transparent", border: `1px solid ${C.borderBright}`, color: C.text, padding: "12px 14px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, width: "100%", marginBottom: 10 }}>REGENERATE FROM ANALYSIS</button>
-          <button onClick={onExportMemo} style={{ background: "transparent", border: `1px solid ${C.blue}55`, color: C.blue, padding: "12px 14px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, width: "100%" }}>EXPORT MARKDOWN</button>
+          <button onClick={onSaveMemo} disabled={saveDisabled} style={{ background: C.accent, border: "none", color: "#020509", padding: "12px 14px", borderRadius: 6, cursor: saveDisabled ? "wait" : "pointer", fontFamily: F.mono, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, width: "100%", marginBottom: 10, opacity: saveDisabled ? 0.8 : 1 }}>{memoUiState.saveState === "working" ? "SAVING MEMO..." : memoUiState.saveState === "success" ? "MEMO SAVED" : "SAVE MEMO"}</button>
+          <button onClick={onRegenerateMemo} disabled={regenerateDisabled} style={{ background: "transparent", border: `1px solid ${C.borderBright}`, color: C.text, padding: "12px 14px", borderRadius: 6, cursor: regenerateDisabled ? "wait" : "pointer", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, width: "100%", marginBottom: 10, opacity: regenerateDisabled ? 0.8 : 1 }}>{memoUiState.regenerateState === "working" ? "REGENERATING..." : memoUiState.regenerateState === "success" ? "MEMO REGENERATED" : "REGENERATE FROM ANALYSIS"}</button>
+          <button onClick={onExportPdf} disabled={exportPdfDisabled} style={{ background: "transparent", border: `1px solid ${C.green}55`, color: C.green, padding: "12px 14px", borderRadius: 6, cursor: exportPdfDisabled ? "wait" : "pointer", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, width: "100%", marginBottom: 10, opacity: exportPdfDisabled ? 0.8 : 1 }}>{memoUiState.exportState.pdf === "working" ? "PREPARING PDF..." : memoUiState.exportState.pdf === "success" ? "PDF EXPORT READY" : "EXPORT PDF"}</button>
+          <button onClick={onExportMarkdown} disabled={exportMarkdownDisabled} style={{ background: "transparent", border: `1px solid ${C.blue}55`, color: C.blue, padding: "12px 14px", borderRadius: 6, cursor: exportMarkdownDisabled ? "wait" : "pointer", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, width: "100%", opacity: exportMarkdownDisabled ? 0.8 : 1 }}>{memoUiState.exportState.markdown === "working" ? "EXPORTING MARKDOWN..." : memoUiState.exportState.markdown === "success" ? "MARKDOWN EXPORTED" : "EXPORT MARKDOWN"}</button>
+          <div style={{ marginTop: 10, fontFamily: F.mono, fontSize: 10, color: C.muted, lineHeight: 1.6 }}>
+            {accessContext.mode === "local-demo"
+              ? "PDF export opens a print dialog for browser-local save-as-PDF."
+              : "PDF export uses the committee-ready renderer aligned to the target enterprise memo format."}
+          </div>
         </Card>
         <Card>
           <Lbl>Metadata</Lbl>
           <div style={{ fontFamily: F.mono, fontSize: 11, lineHeight: 1.8, color: C.text }}>
+            <div>Workspace: {accessContext.displayLabel}</div>
+            <div>Identity: {accessContext.identityStatus}</div>
             <div>Provider: {analysisMeta.provider}</div>
             <div>Mode: {analysisMeta.mode}</div>
             <div>Model: {analysisMeta.modelLabel}</div>
@@ -741,18 +827,34 @@ function MemoTab({ memoDraft, onMemoChange, onSaveMemo, onRegenerateMemo, onExpo
   );
 }
 
-function HistoryTab({ history, currentRecordId, onOpenRecord, onLoadDemo }) {
-  const selected = history.find((record) => record.id === currentRecordId) || null;
+function HistoryTab({ history, currentRecordId, onOpenRecord, onOpenAnalysis, onLoadDemo, onArchiveRecord, accessContext }) {
+  const [showArchived, setShowArchived] = useState(false);
+  const visibleHistory = showArchived ? history : history.filter((record) => !record.archivedAt);
+  const archivedCount = history.filter((record) => record.archivedAt).length;
+  const selected = visibleHistory.find((record) => record.id === currentRecordId) || visibleHistory[0] || null;
+  const selectedPrimaryVulnerability = selected ? getPrimaryVulnerability(selected.results.vulnerabilities || []) : null;
+  const selectedTopExposures = selected ? getTopExposureSummaries(selected.results.exposures?.exposureMap || {}) : [];
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 16 }}>
       <Card style={{ maxHeight: 780, overflow: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <Lbl>Saved Analyses</Lbl>
-          <button onClick={onLoadDemo} style={{ background: "transparent", border: `1px solid ${C.blue}55`, color: C.blue, padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 10 }}>LOAD DEMO</button>
+          <div>
+            <Lbl>Saved Analyses</Lbl>
+            <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted }}>Record library for the current {accessContext.mode === "local-demo" ? "browser workspace" : "workspace scope"}.</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {archivedCount > 0 && (
+              <button onClick={() => setShowArchived((current) => !current)} style={{ background: showArchived ? `${C.orange}18` : "transparent", border: `1px solid ${C.orange}55`, color: C.orange, padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 10 }}>
+                {showArchived ? "HIDE ARCHIVED" : `SHOW ARCHIVED (${archivedCount})`}
+              </button>
+            )}
+            <button onClick={onLoadDemo} style={{ background: "transparent", border: `1px solid ${C.blue}55`, color: C.blue, padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 10 }}>LOAD DEMO</button>
+          </div>
         </div>
-        {!history.length && <div style={{ fontFamily: F.serif, fontSize: 14, color: C.muted }}>No saved analyses yet. Run a live scan or load the demo analysis.</div>}
-        {history.map((record) => {
+        {!visibleHistory.length && !history.length && <div style={{ fontFamily: F.serif, fontSize: 14, color: C.muted }}>No saved analyses yet. Run a live scan or load the demo analysis.</div>}
+        {!visibleHistory.length && history.length > 0 && <div style={{ fontFamily: F.serif, fontSize: 14, color: C.muted }}>All saved analyses are archived. Toggle archived records to inspect them.</div>}
+        {visibleHistory.map((record) => {
           const active = record.id === currentRecordId;
           const reviewColor = getReviewStatusColor(record.review.status);
           return (
@@ -764,10 +866,12 @@ function HistoryTab({ history, currentRecordId, onOpenRecord, onLoadDemo }) {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                 <StatusPill label={record.review.status} color={reviewColor} />
                 <StatusPill label={`L${record.results.governance.escalationLevel}`} color={getReviewStatusColor(record.review.status)} />
+                {record.archivedAt && <StatusPill label="ARCHIVED" color={C.orange} />}
               </div>
               <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted, lineHeight: 1.8 }}>
                 <div>{formatDateTime(record.updatedAt)}</div>
                 <div>{record.analysisMeta.modelLabel}</div>
+                <div>{record.analysisMeta.accessContext?.displayLabel || accessContext.displayLabel}</div>
               </div>
             </button>
           );
@@ -783,37 +887,89 @@ function HistoryTab({ history, currentRecordId, onOpenRecord, onLoadDemo }) {
                   <Lbl>Selected Analysis</Lbl>
                   <h3 style={{ fontFamily: F.serif, fontSize: 22, margin: 0 }}>{selected.title}</h3>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <Tag color={getModeColor(selected.analysisMeta.mode)}>{selected.analysisMeta.mode}</Tag>
-                  <Tag color={C.accent}>{selected.analysisMeta.modelLabel}</Tag>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "flex-start" }}>
+                  <button onClick={() => onOpenAnalysis(selected.id)} style={{ background: "transparent", border: `1px solid ${C.green}55`, color: C.green, padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 10, letterSpacing: 1 }}>
+                    OPEN FULL ANALYSIS
+                  </button>
+                  <button onClick={() => onArchiveRecord(selected.id)} style={{ background: "transparent", border: `1px solid ${C.orange}55`, color: C.orange, padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 10, letterSpacing: 1 }}>
+                    {getArchiveActionLabel(accessContext)}
+                  </button>
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div>
-                  <Lbl>Portfolio Snapshot</Lbl>
-                  <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.7 }}>
-                    <div>Name: {selected.portfolio.name}</div>
-                    <div>Duration: {selected.portfolio.duration} years</div>
-                    <div>Leverage: {selected.portfolio.leverage}x</div>
-                    <div>Liquidity: {selected.portfolio.liquidityProfile}</div>
-                  </div>
-                </div>
-                <div>
-                  <Lbl>Governance Snapshot</Lbl>
-                  <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.7 }}>
-                  <div>Review Status: {selected.review.status}</div>
-                  <div>Escalation: Level {selected.results.governance.escalationLevel}</div>
-                  <div>RCI / LCI: {selected.results.governance.rci.score} / {selected.results.governance.lci.score}</div>
-                  <div>Classification: {selected.analysisMeta.intakeClassification?.portfolioComplexity || "Not recorded"}</div>
-                  <div>Updated: {formatDateTime(selected.updatedAt)}</div>
-                </div>
-              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-start" }}>
+                <Tag color={getModeColor(selected.analysisMeta.mode)}>{selected.analysisMeta.mode}</Tag>
+                <Tag color={C.accent}>{selected.analysisMeta.modelLabel}</Tag>
+                <Tag color={getReviewStatusColor(selected.review.status)}>{selected.review.status}</Tag>
+                {selected.archivedAt && <Tag color={C.orange}>Archived {formatShortDate(selected.archivedAt)}</Tag>}
               </div>
             </Card>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Card>
+                <Lbl>Overview</Lbl>
+                <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.75 }}>
+                  <div>Saved: {formatDateTime(selected.updatedAt)}</div>
+                  <div>Workspace: {selected.analysisMeta.accessContext?.displayLabel || accessContext.displayLabel}</div>
+                  <div>Identity: {selected.analysisMeta.accessContext?.identityStatus || accessContext.identityStatus}</div>
+                  <div>Review Status: {selected.review.status}</div>
+                  <div>Escalation: Level {selected.results.governance.escalationLevel} - {selected.results.governance.escalationLabel}</div>
+                  <div>Data As Of: {formatShortDate(selected.analysisMeta.dataAsOf)}</div>
+                  <div>Data Sources: {(selected.analysisMeta.dataSources || []).join(", ") || "Not recorded"}</div>
+                </div>
+              </Card>
+              <Card>
+                <Lbl>Review Snapshot</Lbl>
+                <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.75 }}>
+                  <div>Reviewer: {selected.review.reviewer || "Unassigned"}</div>
+                  <div>Memo Status: {selected.memo.status}</div>
+                  <div>Reviewed At: {selected.review.reviewedAt ? formatDateTime(selected.review.reviewedAt) : "Pending"}</div>
+                  <div>Override: {selected.review.escalationOverride || "None"}</div>
+                  <div>Override Reason: {selected.review.escalationOverrideReason || "Not recorded"}</div>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <Lbl>Checklist</Lbl>
+                  <SectionBullets items={[
+                    `Structural validity: ${selected.review.checklist.structuralValidity ? "Complete" : "Pending"}`,
+                    `Scenario diversity: ${selected.review.checklist.scenarioDiversity ? "Complete" : "Pending"}`,
+                    `Liquidity fragility: ${selected.review.checklist.liquidityFragility ? "Complete" : "Pending"}`,
+                    `Governance communication: ${selected.review.checklist.governanceCommunication ? "Complete" : "Pending"}`,
+                  ]} color={C.green} />
+                </div>
+              </Card>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Card>
+                <Lbl>Portfolio Snapshot</Lbl>
+                <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.75, marginBottom: 12 }}>
+                  <div>Name: {selected.portfolio.name}</div>
+                  <div>Duration: {selected.portfolio.duration} years</div>
+                  <div>Leverage: {selected.portfolio.leverage}x</div>
+                  <div>Liquidity: {selected.portfolio.liquidityProfile}</div>
+                  <div>Constraints: {selected.portfolio.constraints}</div>
+                  <div>Classification: {selected.analysisMeta.intakeClassification?.classificationSummary || "Not recorded"}</div>
+                </div>
+                <Lbl>Allocations</Lbl>
+                <SectionBullets items={(selected.portfolio.allocations || []).map((row) => `${row.assetClass} — ${row.weight}% — ${row.region}`)} color={C.blue} />
+              </Card>
+              <Card>
+                <Lbl>Analysis Snapshot</Lbl>
+                <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.75, marginBottom: 12 }}>
+                  <div>RCI / LCI: {selected.results.governance.rci.score} / {selected.results.governance.lci.score}</div>
+                  <div>Primary Vulnerability: {selectedPrimaryVulnerability?.primaryVulnerability || "Not recorded"}</div>
+                  <div>Top Scenario: {selected.results.regimes?.[0]?.name || "Not recorded"}</div>
+                  <div>Market Summary: {selected.analysisMeta.marketSummary || "Not recorded"}</div>
+                </div>
+                <Lbl>Top Exposures</Lbl>
+                <SectionBullets items={selectedTopExposures.map((exposure) => `${exposure.label}: ${exposure.score}/10 — ${exposure.interpretation}`)} color={C.accent} />
+                <Lbl>Scenario Names</Lbl>
+                <SectionBullets items={(selected.results.regimes || []).map((regime) => `${regime.name} (${regime.probability}, ${regime.timeHorizon})`)} color={C.green} />
+              </Card>
+            </div>
             <AuditTrail events={selected.auditTrail} />
           </>
         ) : (
-          <Card><Lbl>Selected Analysis</Lbl><div style={{ fontFamily: F.serif, fontSize: 14, color: C.muted }}>Choose an analysis on the left to inspect its full audit trail.</div></Card>
+          <Card><Lbl>Selected Analysis</Lbl><div style={{ fontFamily: F.serif, fontSize: 14, color: C.muted }}>Choose an analysis on the left to inspect its overview, portfolio snapshot, review state, and audit trail.</div></Card>
         )}
       </div>
     </div>
@@ -858,6 +1014,7 @@ export default function App() {
     status: "Draft",
     updatedAt: null,
   });
+  const [memoUiState, setMemoUiState] = useState(DEFAULT_MEMO_ACTION_STATE);
   const [marketContext, setMarketContext] = useState(null);
   const [marketContextLoading, setMarketContextLoading] = useState(true);
   const [marketContextError, setMarketContextError] = useState(null);
@@ -921,11 +1078,16 @@ export default function App() {
   }, []);
 
   const currentRecord = history.find((record) => record.id === currentRecordId) || null;
+  const activeHistory = history.filter((record) => !record.archivedAt);
 
   useEffect(() => {
     if (!currentRecord) return;
     setReviewDraft(currentRecord.review);
     setMemoDraft(currentRecord.memo);
+    setMemoUiState({
+      ...DEFAULT_MEMO_ACTION_STATE,
+      lastSavedAt: currentRecord.memo?.updatedAt || null,
+    });
   }, [currentRecord]);
 
   const openRecord = useCallback((recordId) => {
@@ -936,6 +1098,11 @@ export default function App() {
     setStage("results");
     setError(null);
   }, [history]);
+
+  const openAnalysisFromHistory = useCallback((recordId) => {
+    openRecord(recordId);
+    setTab(0);
+  }, [openRecord]);
 
   const loadDemoAnalysis = useCallback(() => {
     const record = createDemoAnalysisRecord();
@@ -981,6 +1148,7 @@ export default function App() {
         results,
         analysisMeta: {
           ...ANALYSIS_META,
+          accessContext: ACCESS_CONTEXT,
           intakeClassification,
           ...(analysisContext || {}),
         },
@@ -1026,37 +1194,169 @@ export default function App() {
   const handleMemoChange = useCallback((field, value) => {
     setError(null);
     setMemoDraft((prev) => ({ ...prev, [field]: value }));
+    setMemoUiState((prev) => ({
+      ...prev,
+      saveState: "idle",
+      regenerateState: "idle",
+      exportState: { ...prev.exportState, markdown: "idle", pdf: "idle" },
+      lastMessage: "",
+      lastMessageTone: "muted",
+    }));
   }, []);
 
+  const withCurrentDraftRecord = useCallback(() => {
+    if (!currentRecord) return null;
+    return {
+      ...currentRecord,
+      review: reviewDraft,
+      memo: {
+        ...currentRecord.memo,
+        ...memoDraft,
+      },
+      analysisMeta: {
+        ...currentRecord.analysisMeta,
+        accessContext: currentRecord.analysisMeta.accessContext || ACCESS_CONTEXT,
+      },
+    };
+  }, [currentRecord, memoDraft, reviewDraft]);
+
   const handleSaveMemo = useCallback(() => {
+    setMemoUiState((prev) => ({
+      ...prev,
+      saveState: "working",
+      lastMessage: "Saving memo draft to the local analysis record...",
+      lastMessageTone: "working",
+    }));
     const memoError = validateMemoStatusChange(memoDraft, reviewDraft);
     if (memoError) {
       setError(memoError);
+      setMemoUiState((prev) => ({
+        ...prev,
+        saveState: "error",
+        lastMessage: memoError,
+        lastMessageTone: "error",
+      }));
       return;
     }
 
     const actor = reviewDraft.reviewer?.trim() || "Analyst";
     const updated = updateCurrentRecord((record) => updateMemoRecord({ ...record, review: reviewDraft }, memoDraft, actor));
-    if (updated) setMemoDraft(updated.memo);
+    if (updated) {
+      setMemoDraft(updated.memo);
+      setMemoUiState((prev) => ({
+        ...prev,
+        saveState: "success",
+        lastSavedAt: updated.memo.updatedAt,
+        lastMessage: "Memo saved to the active record library entry.",
+        lastMessageTone: "success",
+      }));
+    }
     setError(null);
   }, [memoDraft, reviewDraft, updateCurrentRecord]);
 
   const handleRegenerateMemo = useCallback(() => {
+    setMemoUiState((prev) => ({
+      ...prev,
+      regenerateState: "working",
+      lastMessage: "Regenerating the working markdown memo from structured analysis outputs...",
+      lastMessageTone: "working",
+    }));
     const updated = updateCurrentRecord((record) => regenerateMemoRecord({ ...record, review: reviewDraft, memo: memoDraft }));
-    if (updated) setMemoDraft(updated.memo);
+    if (updated) {
+      setMemoDraft(updated.memo);
+      setMemoUiState((prev) => ({
+        ...prev,
+        regenerateState: "success",
+        lastSavedAt: updated.memo.updatedAt,
+        lastMessage: "Memo regenerated from the current structured analysis.",
+        lastMessageTone: "success",
+      }));
+    }
   }, [memoDraft, reviewDraft, updateCurrentRecord]);
 
-  const handleExportMemo = useCallback(() => {
+  const handleExportMemoMarkdown = useCallback(() => {
     if (!currentRecord) return;
+    setMemoUiState((prev) => ({
+      ...prev,
+      exportState: { ...prev.exportState, markdown: "working" },
+      lastMessage: "Exporting the editable markdown working memo...",
+      lastMessageTone: "working",
+    }));
     const filename = `${safeFilename(memoDraft.title || currentRecord.title || "committee-memo")}.md`;
     downloadTextFile(filename, memoDraft.content);
+    setMemoUiState((prev) => ({
+      ...prev,
+      exportState: { ...prev.exportState, markdown: "success" },
+      lastMessage: `Markdown exported as ${filename}.`,
+      lastMessageTone: "success",
+    }));
   }, [currentRecord, memoDraft]);
+
+  const handleExportMemoPdf = useCallback(() => {
+    const exportRecord = withCurrentDraftRecord();
+    if (!exportRecord) return;
+    try {
+      setMemoUiState((prev) => ({
+        ...prev,
+        exportState: { ...prev.exportState, pdf: "working" },
+        lastMessage: "Opening the committee-ready PDF export dialog...",
+        lastMessageTone: "working",
+      }));
+      exportMemoPdf(exportRecord);
+      setMemoUiState((prev) => ({
+        ...prev,
+        exportState: { ...prev.exportState, pdf: "success" },
+        lastMessage: "PDF export prepared. Use the print dialog to save the committee memo as a PDF.",
+        lastMessageTone: "success",
+      }));
+      setError(null);
+    } catch (nextError) {
+      setError(nextError.message);
+      setMemoUiState((prev) => ({
+        ...prev,
+        exportState: { ...prev.exportState, pdf: "error" },
+        lastMessage: nextError.message,
+        lastMessageTone: "error",
+      }));
+    }
+  }, [withCurrentDraftRecord]);
 
   const handleExportAudit = useCallback(() => {
     if (!currentRecord) return;
     const filename = `${safeFilename(currentRecord.title || "audit-log")}-audit.json`;
     downloadTextFile(filename, buildAuditExport(currentRecord), "application/json;charset=utf-8");
   }, [currentRecord]);
+
+  const handleArchiveRecord = useCallback((recordId) => {
+    const target = history.find((record) => record.id === recordId);
+    if (!target) return;
+
+    const actionLabel = getArchiveActionLabel(ACCESS_CONTEXT).toLowerCase();
+    const confirmed = window.confirm(`This will ${actionLabel} for "${target.title}". Continue?`);
+    if (!confirmed) return;
+
+    const actor = reviewDraft.reviewer?.trim() || "Analyst";
+    const archivedRecord = archiveAnalysisRecord(target, {
+      actor,
+      reason: ACCESS_CONTEXT.mode === "local-demo"
+        ? "Removed from the browser-local workspace."
+        : "Archived from the active enterprise record library.",
+    });
+    const nextHistory = upsertAnalysisRecord(history, archivedRecord);
+    persistHistory(nextHistory);
+
+    const nextActive = nextHistory.find((record) => !record.archivedAt);
+    if (nextActive) {
+      setCurrentRecordId(nextActive.id);
+      setPortfolio(nextActive.portfolio);
+      setStage("results");
+      setTab(5);
+    } else {
+      setCurrentRecordId(null);
+      setStage("input");
+      setTab(0);
+    }
+  }, [history, persistHistory, reviewDraft.reviewer]);
 
   const TABS = ["Exposure Map", "Regime Scenarios", "Vulnerability Matrix", "Governance", "Committee Memo", "History"];
 
@@ -1066,9 +1366,12 @@ export default function App() {
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1180, margin: "0 auto", padding: "28px 24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 32, paddingBottom: 20, borderBottom: `1px solid ${C.border}` }}>
           <div>
-            <div style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 3, color: C.muted, marginBottom: 5 }}>INSTITUTIONAL RISK INTELLIGENCE PLATFORM</div>
+            <div style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 3, color: C.muted, marginBottom: 5 }}>
+              {ACCESS_CONTEXT.mode === "local-demo" ? "LOCAL DEMO WORKSPACE · BROWSER-LOCAL" : "ENTERPRISE TARGET OPERATING MODEL"}
+            </div>
             <h1 style={{ fontFamily: F.serif, fontSize: 30, fontWeight: 700, margin: 0, lineHeight: 1.1 }}>GenAI Portfolio <span style={{ color: C.accent }}>Regime Risk Engine</span></h1>
             <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Tag color={ACCESS_CONTEXT.mode === "local-demo" ? C.orange : C.blue}>{ACCESS_CONTEXT.displayLabel}</Tag>
               <Tag color={C.accent}>4-stage analytics</Tag>
               <Tag color={C.blue}>audit trail + history</Tag>
               <Tag color={C.green}>human review</Tag>
@@ -1082,7 +1385,7 @@ export default function App() {
               </button>
             )}
             <div style={{ fontFamily: F.mono, fontSize: 10, color: C.muted }}>{todayLabel || " "}</div>
-            <div style={{ fontFamily: F.mono, fontSize: 9, color: C.border, marginTop: 3 }}>ADVISORY ONLY · v2.0</div>
+            <div style={{ fontFamily: F.mono, fontSize: 9, color: C.border, marginTop: 3 }}>{ACCESS_CONTEXT.identityStatus} · v2.0</div>
           </div>
         </div>
 
@@ -1096,7 +1399,7 @@ export default function App() {
           />
         )}
 
-        {stage === "input" && <InputPanel portfolio={portfolio} setPortfolio={setPortfolio} onRun={onRun} error={error} onLoadDemo={loadDemoAnalysis} onOpenLatest={() => history[0] && openRecord(history[0].id)} historyCount={history.length} marketContext={marketContext} marketContextLoading={marketContextLoading} marketContextError={marketContextError} onRefreshMarketContext={loadMarketContext} />}
+        {stage === "input" && <InputPanel portfolio={portfolio} setPortfolio={setPortfolio} onRun={onRun} error={error} onLoadDemo={loadDemoAnalysis} onOpenLatest={() => activeHistory[0] && openRecord(activeHistory[0].id)} historyCount={activeHistory.length} marketContext={marketContext} marketContextLoading={marketContextLoading} marketContextError={marketContextError} onRefreshMarketContext={loadMarketContext} accessContext={ACCESS_CONTEXT} />}
         {stage === "running" && <PipeProgress step={step} />}
         {stage === "results" && currentRecord && (
           <div>
@@ -1107,6 +1410,7 @@ export default function App() {
                   <Lbl>Current Analysis</Lbl>
                   <h2 style={{ fontFamily: F.serif, fontSize: 24, margin: "0 0 8px" }}>{currentRecord.title}</h2>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Tag color={ACCESS_CONTEXT.mode === "local-demo" ? C.orange : C.blue}>{currentRecord.analysisMeta.accessContext?.displayLabel || ACCESS_CONTEXT.displayLabel}</Tag>
                     <Tag color={getModeColor(currentRecord.analysisMeta.mode)}>{currentRecord.analysisMeta.mode}</Tag>
                     <Tag color={C.accent}>{currentRecord.analysisMeta.modelLabel}</Tag>
                     <Tag color={getReviewStatusColor(currentRecord.review.status)}>{currentRecord.review.status}</Tag>
@@ -1134,14 +1438,18 @@ export default function App() {
             {tab === 1 && <RegimeTab assessment={currentRecord.results.regimeAssessment} />}
             {tab === 2 && <VulnTab assessment={currentRecord.results.vulnerabilityAssessment} />}
             {tab === 3 && <GovernanceTab gov={currentRecord.results.governance} reviewDraft={reviewDraft} onReviewChange={handleReviewChange} onSaveReview={handleSaveReview} onExportAudit={handleExportAudit} auditTrail={currentRecord.auditTrail} />}
-            {tab === 4 && <MemoTab memoDraft={memoDraft} onMemoChange={handleMemoChange} onSaveMemo={handleSaveMemo} onRegenerateMemo={handleRegenerateMemo} onExportMemo={handleExportMemo} reviewDraft={reviewDraft} analysisMeta={currentRecord.analysisMeta} />}
-            {tab === 5 && <HistoryTab history={history} currentRecordId={currentRecordId} onOpenRecord={openRecord} onLoadDemo={loadDemoAnalysis} />}
+            {tab === 4 && <MemoTab memoDraft={memoDraft} onMemoChange={handleMemoChange} onSaveMemo={handleSaveMemo} onRegenerateMemo={handleRegenerateMemo} onExportMarkdown={handleExportMemoMarkdown} onExportPdf={handleExportMemoPdf} reviewDraft={reviewDraft} analysisMeta={currentRecord.analysisMeta} accessContext={ACCESS_CONTEXT} memoUiState={memoUiState} />}
+            {tab === 5 && <HistoryTab history={history} currentRecordId={currentRecordId} onOpenRecord={openRecord} onOpenAnalysis={openAnalysisFromHistory} onLoadDemo={loadDemoAnalysis} onArchiveRecord={handleArchiveRecord} accessContext={ACCESS_CONTEXT} />}
           </div>
         )}
 
         <div style={{ marginTop: 48, paddingTop: 16, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <span style={{ fontFamily: F.mono, fontSize: 9, color: C.muted, letterSpacing: 1 }}>ADVISORY ONLY · AI OUTPUT REQUIRES EXPERT VALIDATION · NOT INVESTMENT ADVICE</span>
-          <span style={{ fontFamily: F.mono, fontSize: 9, color: C.border }}>Local storage preserves memo drafts, reviews, and audit history in the browser.</span>
+          <span style={{ fontFamily: F.mono, fontSize: 9, color: C.border }}>
+            {ACCESS_CONTEXT.mode === "local-demo"
+              ? "Browser-local storage preserves memo drafts, reviews, and history for this workspace only."
+              : "This prototype reflects the enterprise target workflow, but still runs with browser-local storage in this build."}
+          </span>
         </div>
       </div>
     </div>

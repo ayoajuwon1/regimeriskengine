@@ -1,90 +1,99 @@
 # Curated External Data Plan
 
-## Purpose
+## Objective
 
-Satisfy the capstone requirement that the production system be grounded on curated uploaded evidence rather than unconstrained external retrieval.
+Define the evidence packs that the capstone deployment should upload into the approved platform so the model is grounded on curated materials rather than unrestricted retrieval.
 
-## Operating Principle
+## Operating Rule
 
-For the capstone deployment, the model should reference only:
+The capstone deployment should allow the model to reference only:
 
 - structured portfolio input
-- uploaded curated evidence packs
-- internal governance policy artifacts
+- uploaded curated packs
+- internal governance artifacts
 
-## Recommended Evidence Packs
+## Pack 1. Macro Snapshot Pack
 
-### 1. Macro Snapshot Pack
+### Purpose
 
-Contents:
+Provide a versioned macro context snapshot that is explicit, reviewable, and time-stamped.
 
-- latest selected inflation, labor, growth, and rates series
-- short narrative summary of current macro conditions
+### Suggested Contents
+
+- inflation summary
+- labor-market summary
+- rates curve snapshot
+- growth snapshot
 - date-stamped source table
+- short narrative summary of current conditions
 
-Suggested source base:
+### Suggested Sources
 
 - BLS
 - U.S. Treasury Fiscal Data
 - BEA
 - FRED
 
-Why included:
+### Refresh Cadence
 
-- gives the system an explicit, versioned market context
+weekly or monthly for the demo
 
-### 2. Historical Regime Analog Pack
+## Pack 2. Historical Regime Analog Pack
 
-Contents:
+### Purpose
 
-- curated summaries of 1973–74 stagflation
+Anchor scenario generation in real financial history instead of improvised analogies.
+
+### Suggested Episodes
+
+- 1973–74 stagflation
 - 1994 bond shock
 - 2001–02 earnings recession
 - 2008 global financial crisis
 - March 2020 liquidity shock
 - 2022 inflation reset
 
-For each episode include:
+### For Each Episode Include
 
 - trigger
 - transmission mechanism
 - asset-class implications
-- why it is comparable
+- why the episode is comparable
 - why it is not perfectly comparable
 
-Why included:
+## Pack 3. Governance Policy Pack
 
-- anchors scenario generation in real financial history
-- reduces hallucinated analogies
+### Purpose
 
-### 3. Governance Policy Pack
+Constrain the model to the institution’s review, escalation, and disclosure norms.
 
-Contents:
+### Suggested Contents
 
 - human review checklist
 - escalation rules
-- disclosure language
 - memo standards
+- refusal rules
+- disclosure language
 - prohibited-use rules
 
-Why included:
-
-- keeps outputs aligned with institutional process, not just market reasoning
-
-## What Cannot Be Answered From These Packs
+## What The Packs Cannot Answer
 
 - named security recommendations
 - issuer-level fundamentals not included in the pack
-- benchmark outperformance predictions
-- legal or compliance opinions
-- holdings-level analytics if only aggregate portfolio input is provided
+- benchmark outperformance claims
+- legal or compliance judgments
+- holdings-level analytics if the input is only aggregate
 
-## Versioning and Refresh
+## Metadata Recommendation
 
-- Macro Snapshot Pack: refresh weekly or monthly for the capstone demo
-- Historical Regime Analog Pack: versioned document, refreshed only when materially revised
-- Governance Policy Pack: refresh only when policy changes
+Each pack should include:
+
+- version
+- as-of date
+- source list
+- owner
+- refresh policy
 
 ## Current Repository Position
 
-The current repository uses live public market context as a reference workflow and evaluation harness. For the capstone submission, this curated-pack design is the enterprise-compliant deployment model to configure in the approved no-code / low-code tool.
+The current repository uses live public market context as a reference harness. The curated-pack design described here is the target deployment posture for the capstone and for a more enterprise-aligned operating model.

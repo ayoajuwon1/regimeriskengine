@@ -1,76 +1,68 @@
 # Workflow Map
 
-## Workflow Objective
+## Objective
 
-Create a predictable, reviewable system workflow that can be executed inside a tool UI without relying on unconstrained chat.
+Define the operating workflow so clearly that the tool can be reviewed as a system, not as a sequence of ad hoc prompts.
 
-## Step 1: Intake
+## Workflow Table
 
-Purpose:
+| Step | Actor | Input | Process | Output | Gate |
+|---|---|---|---|---|---|
+| 1. Intake | operator | structured portfolio template | collect portfolio facts and constraints | portfolio record | input completeness |
+| 2. Classification | system | portfolio + market context | derive deterministic intake artifact | classification summary and flags | reviewer can challenge if obviously wrong |
+| 3. Analysis | model | structured portfolio + evidence | run stage 1–4 generation | structured stage outputs | schema and policy constraints |
+| 4. Validation | reviewer | structured outputs | complete review checklist and notes | review state | mandatory before committee use |
+| 5. Output Formatting | system | outputs + review state | generate memo and persist metadata | memo draft and audit updates | memo state rules |
+| 6. Human Review Checkpoint | reviewer | memo + outputs | validate, escalate, or return for revision | reviewed / escalated / needs revision state | committee readiness |
 
-- collect the structured portfolio template
-- verify that the input is complete enough for analysis
+## Expanded Workflow Logic
 
-Human role:
+### Step 1. Intake
 
-- operator confirms that the portfolio entered is the intended committee-review target
+The operator submits the structured portfolio template. The system does not accept free-form financial questions as the primary input.
 
-## Step 2: Classification
+### Step 2. Classification
 
-Purpose:
+The system derives a deterministic classification artifact. This step exists to make structural risk obvious before any model narrative is generated.
 
-- generate a deterministic intake-classification artifact
-- summarize complexity, liquidity tier, leverage class, duration bucket, concentration flags, and context coverage
+### Step 3. Analysis
 
-Human role:
+The model runs four fixed stages:
 
-- reviewer confirms the classification looks directionally reasonable
+1. exposure decomposition
+2. regime generation
+3. vulnerability assessment
+4. governance metrics
 
-## Step 3: Analysis
+### Step 4. Validation
 
-Purpose:
+The human reviewer checks:
 
-- run the four model-driven analysis stages
-- stage 1: exposure decomposition
-- stage 2: regime generation
-- stage 3: vulnerability assessment
-- stage 4: governance metrics
+- structural validity
+- scenario diversity
+- liquidity fragility
+- governance communication readiness
 
-Human role:
+### Step 5. Output Formatting
 
-- no intervention during generation
-- human review happens after structured outputs are returned
+The system assembles the memo and updates the audit trail. This is a formatting and persistence step, not an authorization step.
 
-## Step 4: Validation
+### Step 6. Human Review Checkpoint
 
-Purpose:
-
-- confirm structural validity
-- confirm scenario diversity
-- confirm liquidity fragility review
-- confirm governance communication readiness
-
-Human role:
-
-- mandatory reviewer action
-
-## Step 5: Output Formatting
-
-Purpose:
-
-- persist analysis metadata
-- draft the committee memo
-- record audit entries
-
-Human role:
-
-- decide whether memo remains draft or is ready for committee use
-
-## Step 6: Human Review Checkpoint
+This is the real institutional gate.
 
 Required before committee use:
 
 - reviewer identified
-- review status set
-- override rationale recorded if escalation is changed
-- memo state remains blocked from committee-ready status until review is complete
+- review status recorded
+- escalation override rationale recorded if applicable
+- memo state consistent with review state
+
+## Failure Handling
+
+| Failure | Workflow Response |
+|---|---|
+| malformed input | reject or request correction before analysis |
+| missing market context | fail gracefully and state context unavailable |
+| prohibited request inside input | remain inside structured workflow and refusal boundary |
+| review not complete | block committee-ready memo state |

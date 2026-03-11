@@ -1,25 +1,37 @@
 # Structured Input Template
 
-## Required Fields
+## Purpose
 
-| Field | Type | Description |
-|---|---|---|
-| `name` | string | Portfolio label |
-| `allocations[]` | array | Asset allocation rows |
-| `allocations[].assetClass` | string | Asset class name |
-| `allocations[].weight` | number | Portfolio weight |
-| `allocations[].region` | string | Region / focus |
-| `duration` | number | Effective duration in years |
-| `leverage` | number | Leverage ratio |
-| `liquidityProfile` | string | Liquidity tier selection |
-| `constraints` | string | Mandates, policy limits, or governance constraints |
+Constrain user input to the minimum portfolio and governance facts required to run the analysis workflow responsibly.
+
+## Input Schema
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | portfolio label |
+| `allocations` | array | yes | at least one allocation row |
+| `allocations[].assetClass` | string | yes | supported institutional asset sleeve |
+| `allocations[].weight` | number | yes | expected to sum to ~100 |
+| `allocations[].region` | string | yes | geography or focus |
+| `duration` | number | yes | years |
+| `leverage` | number | yes | `1.0` = unlevered |
+| `liquidityProfile` | string | yes | one of the supported liquidity tiers |
+| `constraints` | string | yes | policy, mandate, governance, or operational constraints |
+
+## Supported Liquidity Values
+
+- `High Liquidity (>80% liquid within 30 days)`
+- `Mixed (40–80% liquid within 30 days)`
+- `Illiquid-Heavy (<40% liquid within 30 days)`
 
 ## Validation Rules
 
-- allocation weights should sum to approximately 100%
-- at least one allocation row is required
-- duration and leverage must be numeric
-- liquidity profile must match a supported operating category
+| Rule | Why It Exists |
+|---|---|
+| allocation weights should sum to approximately 100% | catch malformed inputs |
+| at least one allocation row is required | prevent empty analysis requests |
+| duration and leverage must be numeric | preserve downstream calculations |
+| liquidity profile must match a supported category | preserve classification consistency |
 
 ## Example Input
 
@@ -42,13 +54,28 @@
 }
 ```
 
-## Intake Classification Artifact
+## Derived Intake Classification Artifact
 
-Before analysis, the system derives:
+Before model analysis, the system derives:
 
-- portfolio complexity
-- liquidity tier
-- leverage class
-- duration bucket
-- concentration flags
-- market-context coverage
+| Derived Field | Description |
+|---|---|
+| `classificationSummary` | plain-English summary |
+| `portfolioComplexity` | Moderate / High |
+| `liquidityTier` | high, mixed, or illiquid-heavy posture |
+| `leverageClass` | unlevered, moderate, elevated |
+| `durationBucket` | short, intermediate, long |
+| `contextCoverage` | whether market context is sufficient |
+| `concentrationFlags` | key structural warnings |
+
+## Known Input Limitations
+
+This template does not directly capture:
+
+- manager-specific liquidity rights
+- side-letter terms
+- covenant packages
+- issuer-level holdings detail
+- benchmark-relative investment policy nuance
+
+When those facts are important, the reviewer must treat them as unresolved evidence gaps.

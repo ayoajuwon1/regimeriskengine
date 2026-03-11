@@ -2,39 +2,53 @@
 
 ## Principle
 
-The system informs institutional decision-makers. It does not replace them.
+The system is a governance aid. It does not replace accountable human decision-makers.
 
-## Human Roles
+## Role Design
 
-### Operator
+| Role | Responsibility |
+|---|---|
+| operator | enters the portfolio and initiates analysis |
+| reviewer | validates structural soundness, challenge points, escalation, and memo readiness |
+| committee / decision owner | consumes reviewed output and makes the actual institutional decision |
 
-- enters structured portfolio input
-- initiates analysis
-- reviews intake classification and market context
+## RACI View
 
-### Reviewer
+| Activity | Operator | Reviewer | Committee |
+|---|---|---|---|
+| enter portfolio | R | I | I |
+| run analysis | R | I | I |
+| inspect intake classification | R | C | I |
+| validate output quality | I | R | I |
+| set review status | I | R | I |
+| override escalation | I | R | I |
+| approve committee circulation | I | R | I |
+| make final investment / governance decision | I | C | R |
 
-- validates structural soundness
-- checks scenario diversity
-- checks liquidity fragility treatment
-- confirms governance communication readiness
-- records notes and escalation overrides
-
-### Committee / Decision Owner
-
-- receives reviewed memo
-- decides whether to act, defer, or escalate further
+`R = responsible`, `C = consulted`, `I = informed`
 
 ## Mandatory Human Controls
 
-- review status cannot be skipped for committee use
+- reviewer identity must be recorded
+- review status must be explicit
 - escalation overrides require written rationale
-- memo cannot become committee-ready without validated or escalated review state
-- audit trail preserves reviewer activity
+- committee-ready memo states require validated or escalated review status
 
-## Why Human Oversight Matters
+## Why Human Review Exists
 
-- protects against over-trust in plausible AI narratives
-- prevents advisory slippage
-- creates accountability in a regulated environment
-- ensures ambiguous portfolio facts are challenged before use
+Human review is not cosmetic. It exists because:
+
+- portfolio input may be incomplete
+- ambiguity may need to be challenged
+- escalation may require human judgment
+- institutional accountability cannot be outsourced to model output
+
+## Minimum Reviewer Questions
+
+Before committee use, the reviewer should ask:
+
+1. does the output overclaim what is actually known?
+2. are the regime scenarios genuinely distinct?
+3. does the liquidity analysis reflect the real funding and governance context?
+4. is the escalation level directionally right?
+5. is the memo safe to circulate as institutional content?

@@ -1,3 +1,4 @@
+import { getAccessContext } from "./accessContext.js";
 import { buildIntakeClassification } from "./systemDesign/classification.js";
 
 export const DEMO_PORTFOLIO = {
@@ -25,6 +26,7 @@ export const DEMO_ANALYSIS_META = {
   promptVersion: "demo-v1",
   schemaVersion: "2026-03-10",
   systemDesignVersion: "2026-03-10",
+  accessContext: getAccessContext("local-demo"),
   intakeClassification: null,
   dataSources: ["Proposal Demo Dataset"],
   dataAsOf: "2026-03-10",
