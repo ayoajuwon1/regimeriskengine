@@ -17,13 +17,13 @@ import {
 import { downloadTextFile, exportMemoPdf } from "./lib/memo";
 import { getAccessContext } from "./lib/accessContext.js";
 import { ANALYSIS_META, fetchMarketContext, stage1, stage2, stage3, stage4 } from "./lib/riskAnalysis";
-import { fetchSystemDesign } from "./lib/systemDesign/client.js";
+import { fetchSystemDesign, screenIntakeConstraints } from "./lib/systemDesign/client.js";
 import { buildIntakeClassification } from "./lib/systemDesign/classification.js";
-import { isSystemGuideEnabled } from "./lib/systemDesign/constants.js";
-import { validateMemoStatusChange, validateReviewDecision } from "./lib/systemDesign/policy.js";
+import { createConstraintScreeningCache, prepareConstraintPreflight } from "./lib/systemDesign/intakeScreening.js";
+import { isSystemGuideEnabled, LIQUIDITY_OPTIONS } from "./lib/systemDesign/constants.js";
+import { validateMemoStatusChange, validatePortfolioIntake, validateReviewDecision } from "./lib/systemDesign/policy.js";
 
 const ASSET_CLASSES = ["Public Equity – Developed Markets","Public Equity – Emerging Markets","Investment Grade Fixed Income","High Yield / Credit","Private Equity","Private Credit","Real Assets / Infrastructure","Hedge Funds / Alternatives","Cash & Equivalents","Commodities"];
-const LIQUIDITY_OPTIONS = ["High Liquidity (>80% liquid within 30 days)","Mixed (40–80% liquid within 30 days)","Illiquid-Heavy (<40% liquid within 30 days)"];
 const REVIEW_STATUSES = ["Pending Review", "Validated", "Escalated", "Needs Revision"];
 const ESCALATION_OVERRIDES = ["", "Maintain Current Level", "Downgrade to Level 1", "Downgrade to Level 2", "Escalate to Level 3", "Escalate to Level 4"];
 const PIPE_LABELS = [
@@ -262,6 +262,32 @@ function PipeProgress({ step }) {
   );
 }
 
+function ConstraintScreenProgress() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 500 }}>
+      <style>{`@keyframes sweep{0%{transform:translateX(-120%)}100%{transform:translateX(260%)}}`}</style>
+      <Card style={{ maxWidth: 520, width: "100%", padding: 36 }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <Lbl>Preflight Screening</Lbl>
+          <h2 style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 600, margin: 0, color: C.text }}>Screening Constraint Inputs</h2>
+          <div style={{ marginTop: 10, fontFamily: F.serif, fontSize: 14, color: C.muted }}>
+            Checking the constraints field for off-policy requests before analysis begins.
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+          <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: C.accent + "20", border: `1px solid ${C.accent}60`, color: C.accent, fontFamily: F.mono, fontSize: 11, fontWeight: 700 }}>•</div>
+          <div style={{ flex: 1, paddingTop: 4 }}>
+            <div style={{ fontFamily: F.mono, fontSize: 12, color: C.text }}>SCREENING CONSTRAINTS...</div>
+            <div style={{ height: 2, background: C.border, borderRadius: 2, marginTop: 8, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: "45%", background: C.accent, borderRadius: 2, animation: "sweep 1.4s ease-in-out infinite" }} />
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function MarketContextCard({ marketContext, loading, loadError, onRefresh }) {
   return (
     <Card>
@@ -389,9 +415,11 @@ function MethodGuidePanel({ open, onClose, systemDesign, loading, loadError }) {
   );
 }
 
-function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenLatest, historyCount, marketContext, marketContextLoading, marketContextError, onRefreshMarketContext, accessContext }) {
+function InputPanel({ portfolio, setPortfolio, validation, screeningResult, onRun, error, onLoadDemo, onOpenLatest, historyCount, marketContext, marketContextLoading, marketContextError, onRefreshMarketContext, accessContext }) {
   const total = portfolio.allocations.reduce((s, a) => s + (Number(a.weight) || 0), 0);
-  const valid = Math.abs(total - 100) < 0.5;
+  const allocationsValid = Math.abs(total - 100) < 0.5;
+  const screeningRejected = screeningResult?.decision === "reject";
+  const canRun = (validation?.blockingErrors || []).length === 0 && !screeningRejected;
   const inp = { background: "#050810", border: `1px solid ${C.border}`, color: C.text, fontFamily: F.mono, fontSize: 12, padding: "6px 10px", borderRadius: 4, width: "100%" };
   const addRow = () => setPortfolio((p) => ({ ...p, allocations: [...p.allocations, { assetClass: ASSET_CLASSES[0], weight: 0, region: "Global" }] }));
   const removeRow = (i) => setPortfolio((p) => ({ ...p, allocations: p.allocations.filter((_, idx) => idx !== i) }));
@@ -405,7 +433,7 @@ function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenL
             <Lbl>Asset Allocation</Lbl>
             <h2 style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 600, margin: 0 }}>Portfolio Construction</h2>
           </div>
-          <div style={{ fontFamily: F.mono, fontSize: 12, padding: "5px 13px", borderRadius: 4, background: valid ? C.green + "18" : C.red + "18", border: `1px solid ${valid ? C.green + "50" : C.red + "50"}`, color: valid ? C.green : C.red }}>{total.toFixed(1)}% / 100%</div>
+          <div style={{ fontFamily: F.mono, fontSize: 12, padding: "5px 13px", borderRadius: 4, background: allocationsValid ? C.green + "18" : C.red + "18", border: `1px solid ${allocationsValid ? C.green + "50" : C.red + "50"}`, color: allocationsValid ? C.green : C.red }}>{total.toFixed(1)}% / 100%</div>
         </div>
         <div style={{ marginBottom: 16 }}>
           <Lbl>Portfolio Label</Lbl>
@@ -450,9 +478,29 @@ function InputPanel({ portfolio, setPortfolio, onRun, error, onLoadDemo, onOpenL
           onRefresh={onRefreshMarketContext}
         />
 
+        {(validation?.blockingErrors || []).length > 0 && (
+          <div style={{ background: C.red + "15", border: `1px solid ${C.red}40`, borderRadius: 6, padding: "12px 14px", color: C.red }}>
+            <div style={{ fontFamily: F.mono, fontSize: 11, lineHeight: 1.6, marginBottom: 8 }}>⚠ Correct the portfolio input before running the analysis.</div>
+            <div style={{ fontSize: 13 }}>
+              <SectionBullets items={validation.blockingErrors} color={C.red} />
+            </div>
+          </div>
+        )}
+
+        {screeningRejected && (
+          <div style={{ background: C.red + "15", border: `1px solid ${C.red}40`, borderRadius: 6, padding: "12px 14px", color: C.red }}>
+            <div style={{ fontFamily: F.mono, fontSize: 11, lineHeight: 1.6, marginBottom: 8 }}>
+              ⚠ Constraint screening rejected this input before analysis started.
+            </div>
+            <div style={{ fontSize: 13 }}>
+              <SectionBullets items={screeningResult.reasons} color={C.red} />
+            </div>
+          </div>
+        )}
+
         {error && <div style={{ background: C.red + "15", border: `1px solid ${C.red}40`, borderRadius: 6, padding: "12px 14px", color: C.red, fontFamily: F.mono, fontSize: 11, lineHeight: 1.6 }}>⚠ {error}</div>}
 
-        <button onClick={onRun} disabled={!valid} style={{ background: valid ? C.accent : C.border, border: "none", color: valid ? "#020509" : C.muted, padding: "14px 18px", borderRadius: 6, cursor: valid ? "pointer" : "not-allowed", fontFamily: F.mono, fontSize: 12, fontWeight: 700, letterSpacing: 1.5 }}>◈ RUN REGIME ANALYSIS</button>
+        <button onClick={onRun} disabled={!canRun} style={{ background: canRun ? C.accent : C.border, border: "none", color: canRun ? "#020509" : C.muted, padding: "14px 18px", borderRadius: 6, cursor: canRun ? "pointer" : "not-allowed", fontFamily: F.mono, fontSize: 12, fontWeight: 700, letterSpacing: 1.5 }}>◈ RUN REGIME ANALYSIS</button>
         <button onClick={onLoadDemo} style={{ background: "transparent", border: `1px solid ${C.blue}55`, color: C.blue, padding: "12px 18px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2 }}>LOAD PROPOSAL DEMO ANALYSIS</button>
         {historyCount > 0 && <button onClick={onOpenLatest} style={{ background: "transparent", border: `1px solid ${C.borderBright}`, color: C.text, padding: "12px 18px", borderRadius: 6, cursor: "pointer", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2 }}>OPEN LATEST SAVED ANALYSIS ({historyCount})</button>}
       </div>
@@ -1022,6 +1070,7 @@ export default function App() {
   const [systemDesign, setSystemDesign] = useState(null);
   const [systemDesignLoading, setSystemDesignLoading] = useState(SYSTEM_GUIDE_ENABLED);
   const [systemDesignError, setSystemDesignError] = useState(null);
+  const [constraintScreeningCache, setConstraintScreeningCache] = useState(createConstraintScreeningCache());
 
   useEffect(() => {
     const stored = loadAnalysisHistory();
@@ -1079,6 +1128,10 @@ export default function App() {
 
   const currentRecord = history.find((record) => record.id === currentRecordId) || null;
   const activeHistory = history.filter((record) => !record.archivedAt);
+  const inputValidation = validatePortfolioIntake(portfolio);
+  const activeConstraintScreening = constraintScreeningCache.constraints === portfolio.constraints
+    ? constraintScreeningCache.result
+    : null;
 
   useEffect(() => {
     if (!currentRecord) return;
@@ -1115,55 +1168,89 @@ export default function App() {
     setError(null);
   }, [history, persistHistory]);
 
-  const onRun = useCallback(async () => {
-    setError(null);
+  const runAnalysis = useCallback(async () => {
     setStage("running");
     setStep(0);
-    try {
-      setStep(1);
-      const intakeClassification = buildIntakeClassification(portfolio, marketContext);
-      const expResponse = await stage1(portfolio, intakeClassification);
-      const exp = expResponse.data;
-      setStep(2);
-      const regResponse = await stage2(portfolio, exp, intakeClassification);
-      const reg = regResponse.data;
-      setStep(3);
-      const vulnResponse = await stage3(portfolio, reg.regimes || [], intakeClassification);
-      const vuln = vulnResponse.data;
-      setStep(4);
-      const govResponse = await stage4(portfolio, exp, vuln, intakeClassification);
-      const gov = govResponse.data;
-      const analysisContext = govResponse.analysisContext || vulnResponse.analysisContext || regResponse.analysisContext || expResponse.analysisContext || marketContext;
+    setStep(1);
+    const intakeClassification = buildIntakeClassification(portfolio, marketContext);
+    const expResponse = await stage1(portfolio, intakeClassification);
+    const exp = expResponse.data;
+    setStep(2);
+    const regResponse = await stage2(portfolio, exp, intakeClassification);
+    const reg = regResponse.data;
+    setStep(3);
+    const vulnResponse = await stage3(portfolio, reg.regimes || [], intakeClassification);
+    const vuln = vulnResponse.data;
+    setStep(4);
+    const govResponse = await stage4(portfolio, exp, vuln, intakeClassification);
+    const gov = govResponse.data;
+    const analysisContext = govResponse.analysisContext || vulnResponse.analysisContext || regResponse.analysisContext || expResponse.analysisContext || marketContext;
 
-      const results = {
-        exposures: exp,
-        regimeAssessment: reg,
-        regimes: reg.regimes || [],
-        vulnerabilityAssessment: vuln,
-        vulnerabilities: vuln.vulnerabilities || [],
-        governance: gov,
-      };
-      const record = createAnalysisRecord({
-        portfolio,
-        results,
-        analysisMeta: {
-          ...ANALYSIS_META,
-          accessContext: ACCESS_CONTEXT,
-          intakeClassification,
-          ...(analysisContext || {}),
-        },
-      });
-      const nextHistory = upsertAnalysisRecord(history, record);
-      persistHistory(nextHistory);
-      setCurrentRecordId(record.id);
-      setTab(0);
+    const results = {
+      exposures: exp,
+      regimeAssessment: reg,
+      regimes: reg.regimes || [],
+      vulnerabilityAssessment: vuln,
+      vulnerabilities: vuln.vulnerabilities || [],
+      governance: gov,
+    };
+    const record = createAnalysisRecord({
+      portfolio,
+      results,
+      analysisMeta: {
+        ...ANALYSIS_META,
+        accessContext: ACCESS_CONTEXT,
+        intakeClassification,
+        ...(analysisContext || {}),
+      },
+    });
+    const nextHistory = upsertAnalysisRecord(history, record);
+    persistHistory(nextHistory);
+    setCurrentRecordId(record.id);
+    setTab(0);
+    setError(null);
+    setStage("results");
+  }, [history, marketContext, persistHistory, portfolio]);
+
+  const onRun = useCallback(async () => {
+    const validation = validatePortfolioIntake(portfolio);
+    if (validation.blockingErrors.length > 0) {
       setError(null);
-      setStage("results");
-    } catch (e) {
-      setError(e.message);
+      setStage("input");
+      return;
+    }
+
+    setError(null);
+    const cachedScreening = activeConstraintScreening
+      ? createConstraintScreeningCache(portfolio.constraints, activeConstraintScreening)
+      : null;
+
+    if (!cachedScreening) {
+      setStage("screening");
+    }
+
+    try {
+      const preflight = await prepareConstraintPreflight({
+        constraints: portfolio.constraints,
+        validation,
+        cachedScreening,
+        performScreening: screenIntakeConstraints,
+      });
+
+      setConstraintScreeningCache(preflight.cache);
+
+      if (!preflight.shouldRunAnalysis) {
+        setStage("input");
+        return;
+      }
+
+      await runAnalysis();
+    } catch (nextError) {
+      setConstraintScreeningCache(createConstraintScreeningCache());
+      setError(nextError instanceof Error ? nextError.message : "Constraint screening unavailable. Try again.");
       setStage("input");
     }
-  }, [history, marketContext, persistHistory, portfolio]);
+  }, [activeConstraintScreening, portfolio, runAnalysis]);
 
   const updateCurrentRecord = useCallback((updater) => {
     if (!currentRecord) return null;
@@ -1399,7 +1486,8 @@ export default function App() {
           />
         )}
 
-        {stage === "input" && <InputPanel portfolio={portfolio} setPortfolio={setPortfolio} onRun={onRun} error={error} onLoadDemo={loadDemoAnalysis} onOpenLatest={() => activeHistory[0] && openRecord(activeHistory[0].id)} historyCount={activeHistory.length} marketContext={marketContext} marketContextLoading={marketContextLoading} marketContextError={marketContextError} onRefreshMarketContext={loadMarketContext} accessContext={ACCESS_CONTEXT} />}
+        {stage === "input" && <InputPanel portfolio={portfolio} setPortfolio={setPortfolio} validation={inputValidation} screeningResult={activeConstraintScreening} onRun={onRun} error={error} onLoadDemo={loadDemoAnalysis} onOpenLatest={() => activeHistory[0] && openRecord(activeHistory[0].id)} historyCount={activeHistory.length} marketContext={marketContext} marketContextLoading={marketContextLoading} marketContextError={marketContextError} onRefreshMarketContext={loadMarketContext} accessContext={ACCESS_CONTEXT} />}
+        {stage === "screening" && <ConstraintScreenProgress />}
         {stage === "running" && <PipeProgress step={step} />}
         {stage === "results" && currentRecord && (
           <div>

@@ -59,6 +59,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 - The app now runs as a single Next.js service with UI and API routes in one process.
 - The UI calls the local `/api/analyze` route instead of sending model requests directly from the browser.
+- The UI screens `constraints` through `/api/intake-screen` before any 4-stage analysis call begins.
 - Public market context is available at `/api/data/context`, and individual indicator debugging is available at `/api/data/series?indicator=...`.
 - System-design artifacts are available at `/api/system-design`.
 - Set `OPENAI_API_KEY` in `.env`. Do not commit it.
@@ -76,6 +77,7 @@ Open [http://localhost:3000](http://localhost:3000)
 app/
 ├── api/
 │   ├── analyze/route.js # Next API route that calls OpenAI Responses
+│   ├── intake-screen/   # Preflight constraint-screening gate
 │   ├── system-design/   # Read-only system instruction / guide / schema endpoint
 │   └── health/route.js  # Lightweight health check
 │   └── data/            # Public market context + indicator routes

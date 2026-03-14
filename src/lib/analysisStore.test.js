@@ -39,6 +39,37 @@ test("archiveAnalysisRecord applies archive lifecycle metadata and audit logging
   assert.equal(archived.auditTrail[0].type, "analysis.archived");
 });
 
+test("createAnalysisRecord records constraint-screening evidence when guardrails fire", () => {
+  const record = createAnalysisRecord({
+    portfolio: DEMO_PORTFOLIO,
+    results: DEMO_RESULTS,
+    analysisMeta: {
+      provider: "OpenAI",
+      mode: "live",
+      modelLabel: "gpt-4o-mini",
+      promptVersion: "v2.2",
+      schemaVersion: "2026-03-10",
+      systemDesignVersion: "2026-03-10",
+      accessContext: getAccessContext("local-demo"),
+      intakeClassification: null,
+      dataSources: ["BLS", "U.S. Treasury Fiscal Data"],
+      dataAsOf: "2026-03-10",
+      contextVersion: "public-data-v1",
+      guardrails: {
+        constraintWarnings: ["Constraint text includes named-security commentary that is out of scope."],
+        constraintsSanitized: true,
+      },
+    },
+  });
+
+  const screeningEvent = record.auditTrail.find((event) => event.type === "constraints.screened");
+
+  assert.ok(screeningEvent);
+  assert.match(screeningEvent.message, /removed before model analysis/i);
+  assert.equal(record.analysisMeta.guardrails.constraintsSanitized, true);
+  assert.equal(record.analysisMeta.guardrails.constraintWarnings.length, 1);
+});
+
 test("normalizeAnalysisRecord backfills archive and access context fields for older records", () => {
   const normalized = normalizeAnalysisRecord({
     id: "scan-1",
@@ -66,5 +97,7 @@ test("normalizeAnalysisRecord backfills archive and access context fields for ol
 
   assert.equal(normalized.archivedAt, null);
   assert.equal(normalized.analysisMeta.accessContext.mode, "local-demo");
+  assert.deepEqual(normalized.analysisMeta.guardrails.constraintWarnings, []);
+  assert.equal(normalized.analysisMeta.guardrails.constraintsSanitized, false);
   assert.equal(normalized.review.checklist.structuralValidity, false);
 });

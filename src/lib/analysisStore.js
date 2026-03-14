@@ -49,6 +49,13 @@ function defaultAccessContext() {
   return getAccessContext("local-demo");
 }
 
+function defaultGuardrails() {
+  return {
+    constraintWarnings: [],
+    constraintsSanitized: false,
+  };
+}
+
 export function normalizeAnalysisRecord(record) {
   if (!record || typeof record !== "object") return null;
 
@@ -58,6 +65,10 @@ export function normalizeAnalysisRecord(record) {
     analysisMeta: {
       accessContext: defaultAccessContext(),
       ...(record.analysisMeta || {}),
+      guardrails: {
+        ...defaultGuardrails(),
+        ...(record.analysisMeta?.guardrails || {}),
+      },
     },
     review: {
       ...defaultReview(),
@@ -101,6 +112,10 @@ function buildRecordTitle(portfolio, createdAt) {
 export function createAnalysisRecord({ portfolio, results, analysisMeta }) {
   const createdAt = nowIso();
   const review = defaultReview();
+  const guardrails = {
+    ...defaultGuardrails(),
+    ...(analysisMeta?.guardrails || {}),
+  };
   const record = {
     ...defaultArchiveFields(),
     id: makeId("scan"),
@@ -109,7 +124,10 @@ export function createAnalysisRecord({ portfolio, results, analysisMeta }) {
     updatedAt: createdAt,
     portfolio,
     results,
-    analysisMeta,
+    analysisMeta: {
+      ...analysisMeta,
+      guardrails,
+    },
     review,
     memo: {
       title: `Committee Memo - ${portfolio.name || "Portfolio Review"}`,
@@ -129,6 +147,7 @@ export function createAnalysisRecord({ portfolio, results, analysisMeta }) {
       intakeClassification: analysisMeta.intakeClassification || null,
       dataSources: analysisMeta.dataSources || [],
       dataAsOf: analysisMeta.dataAsOf || null,
+      guardrails,
     }),
     createAuditEvent(
       "intake.classified",
@@ -143,6 +162,21 @@ export function createAnalysisRecord({ portfolio, results, analysisMeta }) {
       dataSources: analysisMeta.dataSources || [],
       dataAsOf: analysisMeta.dataAsOf || null,
     }),
+    ...(guardrails.constraintWarnings.length > 0
+      ? [
+          createAuditEvent(
+            "constraints.screened",
+            "System",
+            guardrails.constraintsSanitized
+              ? "Out-of-scope constraint requests were removed before model analysis."
+              : "Out-of-scope constraint requests were detected before model analysis.",
+            {
+              constraintWarnings: guardrails.constraintWarnings,
+              constraintsSanitized: guardrails.constraintsSanitized,
+            },
+          ),
+        ]
+      : []),
     createAuditEvent("memo.generated", "System", "Committee memo drafted from the latest analysis.", {}),
   ];
 
